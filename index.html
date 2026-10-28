@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>一切顺利</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='7' cy='12' r='4.6' fill='%236F4526'/%3E%3Ccircle cx='57' cy='12' r='4.6' fill='%236F4526'/%3E%3Cellipse cx='32' cy='32' rx='30' ry='29' fill='%238B5E3C'/%3E%3Cellipse cx='32' cy='43' rx='19' ry='12' fill='%23F0D9C0'/%3E%3Ccircle cx='19' cy='25' r='3.1' fill='%232B1B12'/%3E%3Ccircle cx='45' cy='25' r='3.1' fill='%232B1B12'/%3E%3Cellipse cx='32' cy='35.5' rx='5' ry='3.4' fill='%233A2418'/%3E%3Cpath d='M32 39v2.8M32 41.8c-2.3 2.1-5.6 1.4-6.7-.7M32 41.8c2.3 2.1 5.6 1.4 6.7-.7' stroke='%233A2418' stroke-width='1.9' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 37l-7-1.5M11 42l-7 1.7M53 37l7-1.5M53 42l7 1.7' stroke='%236B4A32' stroke-width='1.6' stroke-linecap='round' opacity='.85'/%3E%3Cpath d='M14 8c2.4-1.9 5-2.4 7.6-2M50 8c-2.4-1.9-5-2.4-7.6-2' stroke='%23B07A4A' stroke-width='2.3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   /* ========== 配色（暖调递进 v3：琥珀 → 珊瑚 → 玫红 → 紫）==========
      换色只改这一块 + 下面 JS 里的 STATUSES 数组（两处保持一致） */
@@ -349,8 +350,15 @@
   .jd-item-text.collapsed{
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
   .jd-item-acts{display:flex;gap:8px;margin-left:auto}
-  .jd-textarea{min-height:240px;max-height:56vh;font-size:12.5px;line-height:1.65;resize:vertical}
-  .jd-parse{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:2px}
+  /* JD 弹窗单独放大：粘贴框尽量铺满，长 JD 才不用在小框里挤 */
+  #jdMask .modal{width:min(820px,96vw);height:min(92vh,780px);max-height:92vh}
+  #jdMask .modal-body{display:flex;flex-direction:column;gap:0;flex:1 1 auto;min-height:0}
+  #jdMask .field.full{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+  /* 全局 .field textarea 的 min-height / overflow-y 优先级更高，这里连带提权 */
+  .field textarea.jd-textarea{
+    flex:1 1 auto;min-height:300px;height:auto;max-height:none;
+    font-size:12.5px;line-height:1.65;resize:none;overflow-y:auto}
+  .jd-parse{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:2px;grid-column:1 / -1}
   .jd-parse-label{font-size:12px;color:var(--ink-3);white-space:nowrap;flex:none}
   .jd-parse input{flex:1 1 0;min-width:0;font-family:inherit;font-size:12.5px;padding:7px 11px;
     border:1px solid var(--line);border-radius:8px;color:var(--ink);background:#fff}
@@ -1343,6 +1351,7 @@ function parseJD(text){
   }
   if (!position){ const m = body.match(JD_POS_PAT); if (m) position = m[0]; }
 
+
   // 「鹏华基金-机构业务经理助理」这种公司+岗位连写，把公司部分剥掉
   if (company && position.includes(company)){
     const rest = position.slice(position.indexOf(company) + company.length)
@@ -1392,10 +1401,49 @@ function attachJD(rec){
   const jd = matchJD(rec.company, rec.position);
   if (!jd) return false;
   rec.note = (rec.note ? rec.note + '\n\n' : '') + jdNote(jd);
-  jd.linked_id  = rec.id ?? null;
-  jd.status     = 'applied';
-  jd.applied_at = todayStr();
+  // JD 内容已经写进投递备注，留存里就不留了
+  JDS = JDS.filter(j => j !== jd);
   return true;
+}
+
+/* 复制整段 JD。file:// 打开时 navigator.clipboard 往往不可用，退回 execCommand */
+async function copyJD(id, btn){
+  const jd = JDS.find(j => String(j.id) === String(id));
+  if (!jd) return;
+  const txt = jd.text || '';
+  let ok = false;
+  try{
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(txt);
+      ok = true;
+    }
+  }catch(e){ /* 落到下面的兜底 */ }
+
+  if (!ok){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, txt.length);
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    }catch(e){ ok = false; }
+  }
+
+  if (btn){
+    const old = btn.textContent;
+    btn.textContent = ok ? '已复制' : '复制失败';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  }
+}
+
+/* 精确到秒的时间戳，用于 JD 排序 */
+function nowStamp(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 function jdNextId(){
@@ -1411,12 +1459,20 @@ function shortUrl(u){
 function renderJDs(){
   const panel = $('jdPanel');
   if (!panel) return;
+
+  // 兜底：数据里还留着「已投递」标记的（旧版本存下的），内容已在备注里，清掉
+  const before = JDS.length;
+  JDS = JDS.filter(j => j.status !== 'applied' && !j.linked_id);
+  if (JDS.length !== before) saveRecords();
+
   const badge = $('jdBadge');
   if (badge) badge.textContent = JDS.length ? String(JDS.length) : '';
   panel.hidden = !JDS.length;
   if (!JDS.length) return;
 
-  const sorted = JDS.slice().sort((a,b) => (b.added || '').localeCompare(a.added || ''));
+  // 从近到远：有精确时间的按时间，同一天/旧数据按 id 递增兜底（id 越大越新）
+  const sortKey = j => (j.added_at || j.added || '') + '|' + String(j.id || 0).padStart(12, '0');
+  const sorted = JDS.slice().sort((a,b) => sortKey(b).localeCompare(sortKey(a)));
   $('jdList').innerHTML = sorted.map(j => {
     const applied = j.status === 'applied' || j.linked_id;
     const txt = (j.text || '').trim();
@@ -1427,29 +1483,23 @@ function renderJDs(){
         <span class="jd-item-title">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</span>
         <span class="jd-tag ${applied ? 'applied' : 'open'}">${applied ? '已投递' : '未投递'}</span>
         <span class="jd-item-acts">
+          <button class="btn" data-jdcopy="${j.id}" title="复制整段 JD 原文">复制</button>
           ${long ? `<button class="btn" data-jdtog="${j.id}">${coll ? '展开全文' : '收起'}</button>` : ''}
           ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener" style="text-decoration:none">原帖</a>` : ''}
           <button class="btn danger" data-jddel="${j.id}">删除</button>
         </span>
       </div>
-      <div class="jd-item-meta">${esc(j.added || '')}${j.url ? ' · ' + esc(shortUrl(j.url)) : ''}</div>
+      <div class="jd-item-meta">${esc(j.added_at ? j.added_at.slice(0, 16) : (j.added || ''))}${j.url ? ' · ' + esc(shortUrl(j.url)) : ''}</div>
       ${txt ? `<div class="jd-item-text${coll ? ' collapsed' : ''}">${esc(txt)}</div>` : ''}
     </div>`;
   }).join('');
-}
-
-function growJDText(){
-  const t = $('jdText');
-  if (!t) return;
-  t.style.height = 'auto';
-  t.style.height = Math.max(240, Math.min(t.scrollHeight + 4, innerHeight * 0.56)) + 'px';
 }
 
 function openJD(){
   ['jdText','jdCompany','jdPosition','jdUrl'].forEach(id => { const el = $(id); if (el) el.value = ''; });
   $('jdErr').textContent = '';
   $('jdMask').classList.add('open');
-  setTimeout(() => { const t = $('jdText'); if (t){ t.style.height = ''; t.focus(); } }, 30);
+  setTimeout(() => { const t = $('jdText'); if (t) t.focus(); }, 30);
 }
 function closeJD(){ $('jdMask').classList.remove('open'); }
 
@@ -1475,7 +1525,7 @@ function saveJD(){
     id: jdNextId(), _jd: true,
     company, position,
     url: $('jdUrl').value.trim(),
-    text, added: todayStr(), status: 'open',
+    text, added: todayStr(), added_at: nowStamp(), status: 'open',
   });
   saveRecords();
   closeJD();
@@ -2215,12 +2265,13 @@ $('jdText').addEventListener('input', () => {
   if (p.company  && !$('jdCompany').value)  $('jdCompany').value  = p.company;
   if (p.position && !$('jdPosition').value) $('jdPosition').value = p.position;
   if (p.url      && !$('jdUrl').value)      $('jdUrl').value      = p.url;
-  growJDText();                      // 框跟着内容长高，不用滚着看
 });
 $('jdText').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); saveJD(); }
 });
 $('jdList').onclick = e => {
+  const c = e.target.closest('[data-jdcopy]');
+  if (c){ copyJD(c.dataset.jdcopy, c); return; }
   const t = e.target.closest('[data-jdtog]');
   if (t){
     const id = String(t.dataset.jdtog);
