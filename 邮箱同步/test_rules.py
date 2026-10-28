@@ -40,12 +40,12 @@ def build(frm, to, subject, body, attach=None, date="Fri, 24 Oct 2026 10:00:00 +
 
 SENT_CASES = [
     ("华泰联合（企业域名+简历附件）",
-     "求职者 <me@qq.com>", "华泰联合证券招聘 <htlhhr_internsz@htsc.com>",
+     "求职者 <me@qq.com>", "华泰联合证券招聘 <campus@htsc.com>",
      "【华泰联合证券】境内外投行项目实习生招聘",
      "老师您好，附件是我的个人简历，应聘境内外投行项目实习生岗位。", "求职者-简历.pdf", True),
 
     ("月之暗面直投个人邮箱",
-     "求职者 <me@qq.com>", "徐天天 <Xutiantian@moonshot.ai>",
+     "求职者 <me@qq.com>", "招聘负责人 <hr@moonshot.ai>",
      "应聘金融AI实习生-某大学",
      "您好，想应聘金融ai领域实习生，附件为简历。", "简历.pdf", True),
 
@@ -67,7 +67,7 @@ SENT_CASES = [
 
 INBOX_CASES = [
     ("面试通知（含时间地点）",
-     "华泰联合证券 <htlhhr_internsz@htsc.com>", "me@qq.com",
+     "华泰联合证券 <campus@htsc.com>", "me@qq.com",
      "【面试通知】境内外投行项目实习生",
      "您好，请于2026年10月30日 14:00参加面试。\n地点：深圳市福田区xx大厦\n腾讯会议：https://meeting.tencent.com/dm/abc123", True),
     ("拒信",
@@ -161,7 +161,7 @@ for name in ["华泰联合证券", "华泰联合证券招聘", "广发证券", "
 
 print()
 print("公司推断测试：")
-for to in ["华泰联合证券招聘 <htlhhr_internsz@htsc.com>", "hr@gf.com.cn",
-           "徐天天 <Xutiantian@moonshot.ai>", "某公司 <contact@somecorp.com>"]:
+for to in ["华泰联合证券招聘 <campus@htsc.com>", "hr@gf.com.cn",
+           "招聘负责人 <hr@moonshot.ai>", "某公司 <contact@somecorp.com>"]:
     msg = build("me", to, "应聘", "简历")
     print(f"  {to:<45} → {sync.guess_company(msg, CFG['free_mail_domains'])}")
