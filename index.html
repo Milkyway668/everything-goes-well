@@ -793,6 +793,17 @@ const SAMPLE_RECORDS = [
    timeline:[{s:'submitted',d:'2026-09-12',n:''},{s:'screening',d:'2026-09-20',n:''},{s:'test',d:'2026-09-28',n:''}]},
   {id:25, company:'某省定向选调', position:'省直机关 财经岗',   industry:'选调',    next:'资格审查中',
    timeline:[{s:'submitted',d:'2026-09-21',n:''},{s:'screening',d:'2026-09-30',n:'资格复审'}]},
+
+  /* —— JD 留存示例：带 _jd 标记，只出现在 JD 板块，不进投递列表 —— */
+  {id:800001, _jd:true, company:'青禾资本', position:'固收研究实习生',
+   url:'https://example.com/jd/qinghe-fixed-income',
+   text:'【岗位职责】\n1. 跟踪利率债、信用债市场，整理每日成交与估值异动，撰写市场日报；\n2. 协助完成城投、地产、产业债的信用分析，搭建主体财务模型；\n3. 参与转债正股基本面研究，维护可转债条款与溢价率数据库；\n4. 支持基金经理的专题研究。\n\n【任职要求】\n1. 2027 届硕士及以上，金融、经济、会计、统计相关专业；\n2. 每周到岗 4 天以上，实习期不少于 3 个月；\n3. 熟练使用 Excel，会 Python 或 Wind 取数者优先。\n\n【实习待遇】\n硕士 200 元/天，提供午餐；表现优秀可进入校招留用流程。',
+   added:'2026-10-28', added_at:'2026-10-28 19:42:10', status:'open'},
+
+  {id:800002, _jd:true, company:'云岭银行', position:'金融市场部管培生',
+   url:'',
+   text:'【培养方向】\n资金交易、债券投资、同业业务、风险管理四条线轮岗，每站 3 个月。\n\n【岗位职责】\n1. 协助交易员完成日常资金头寸匡算与询价；\n2. 跟踪货币市场利率走势，整理同业存单发行数据；\n3. 参与债券投资组合的久期与流动性分析。\n\n【任职要求】\n1. 2027 届硕士，金融工程、数量经济、数学相关专业优先；\n2. 通过 CFA 一级、FRM 部分科目者优先；\n3. 对利率市场有基本认知，沟通表达清晰。',
+   added:'2026-10-27', added_at:'2026-10-27 21:15:33', status:'open'},
 ];
 
 /* =========================================================
@@ -868,7 +879,9 @@ function loadRecords(){
   }catch(e){ console.warn('读取本地数据失败：', e); }
 
   isSample = true;                          // 没有存档 → 首次打开，给示例
-  return SAMPLE_RECORDS.map(normalize);
+  const [sampleMain, , sampleJds] = splitPending(SAMPLE_RECORDS);
+  if (sampleJds.length) JDS = sampleJds;    // 示例里的 JD 单独进留存区
+  return sampleMain.map(normalize);
 }
 
 /* 每次改动都调用。
@@ -2300,6 +2313,7 @@ $('timelineList').onclick = e => {
 $('clearSample').onclick = () => {
   if (!confirm('清空示例数据，开始录入你自己的投递记录？\n（清空后不可恢复）')) return;
   RECORDS = [];
+  JDS = [];                  // 示例 JD 一起清掉，免得混进自己的留存
   isSample = false;
   saveRecords();
   refresh();
