@@ -1,0 +1,19 @@
+{
+  "_说明": "把本文件复制成 config.json 再填。里面有授权码，别发给任何人，别上传网盘。",
+
+  "email": "在这里填你的QQ邮箱，例如 123456789@qq.com",
+  "auth_code": "在这里填16位授权码（不是QQ密码）",
+
+  "_看板路径说明": "默认值 ../我的投递记录.json 表示「上一级文件夹里的我的投递记录.json」，也就是把邮箱同步文件夹放在看板文件夹里。也可以改成绝对路径，例如 C:/Users/你的名字/Desktop/一切顺利/我的投递记录.json",
+  "dashboard_json": "../我的投递记录.json",
+
+  "lookback_days": 90,
+  "scan_sent": true,
+  "scan_inbox": true,
+
+  "free_mail_domains": [
+    "qq.com", "foxmail.com", "163.com", "126.com", "yeah.net", "188.com",
+    "sina.com", "sina.cn", "sohu.com", "139.com", "aliyun.com",
+    "gmail.com", "outlook.com", "hotmail.com", "live.com", "icloud.com", "yahoo.com"
+  ]
+}

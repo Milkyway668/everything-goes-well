@@ -1,0 +1,2271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一切顺利</title>
+<style>
+  /* ========== 配色（暖调递进 v3：琥珀 → 珊瑚 → 玫红 → 紫）==========
+     换色只改这一块 + 下面 JS 里的 STATUSES 数组（两处保持一致） */
+  :root{
+    /* 字体栈取自 html-slides：中文优先，避免 Segoe UI 兜底造成中英混排不一致 */
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --serif:"Songti SC","STSongti-SC","Noto Serif SC","Source Han Serif SC",serif;
+    --mono:"SF Mono","Menlo","Consolas","Courier New",monospace;
+
+    /* 流水线 9 阶段：色相从琥珀升温到紫，明度同时下降 —— 双重维度区分 */
+    /* 待投递是"空心"，不属于流水线，不占实心色位 */
+    --s-submitted: #F0D9B0;  /* 已投递   浅琥珀 */
+    --s-screening: #E8C283;  /* 简历筛选 琥珀 */
+    --s-test:      #DFA85B;  /* 测评     金橙 */
+    --s-written:   #D2884B;  /* 笔试     橙 */
+    --s-ai:        #C46A56;  /* AI面试   珊瑚 */
+    --s-r1:        #B04E63;  /* 一面     玫紫 */
+    --s-r2:        #943C77;  /* 二面     紫红 */
+    --s-final:     #74308A;  /* 终面     深紫 */
+    --s-hr:        #552389;  /* HR面    靖紫 */
+    /* 终局 */
+    --s-verbal:    #8FD3AE;  /* 口头Offer —— 浅绿（同色系，用明度区分正式 Offer） */
+    --s-offer:     #1F8A5B;  /* Offer —— 深绿（唯一跳色，避开橙色系） */
+    --s-rejected:  #C4C7CC;  /* 已拒绝 —— 冷灰 */
+    --s-dropped:   #D8CFC4;  /* 已放弃 —— 暖沙 */
+
+    --bg:        #F5F6F8;
+    --card:      #FFFFFF;
+    --navy:      #0B2A5B;
+    --ink:       #1B2333;
+    --ink-2:     #5A6478;
+    --ink-3:     #98A1B3;
+    --line:      #E6E9EF;
+    --radius:    14px;
+    --shadow:    0 1px 2px rgba(16,32,64,.05), 0 6px 20px rgba(16,32,64,.06);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
+    padding:20px 24px 44px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  /* ---------- 数据位置状态条 ---------- */
+  .databar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    border-radius:10px;padding:8px 14px;margin-bottom:12px;
+    font-size:12.5px;line-height:1.5;
+  }
+  .databar.warn{background:#FFF9EC;border:1px solid #F2E4C4;color:#8A6D2B}
+  .databar.ok{background:#F1F7F3;border:1px solid #CFE6D8;color:#2E6B50}
+  /* 「需要重新授权」是正常流程，不是出错，所以用中性蓝而不是警告黄 */
+  .databar.link{background:#EFF3FA;border:1px solid #D6E0F0;color:#3B5A8C}
+  .databar.info{background:#F3F5F9;border:1px solid var(--line);color:var(--ink-2)}
+  .databar .db-tx{flex:1;min-width:0}
+  .databar .db-tx b{font-weight:700}
+  .databar .db-save{white-space:nowrap;font-variant-numeric:tabular-nums}
+  .db-btn{
+    font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;
+    border-radius:7px;padding:5px 12px;white-space:nowrap;
+    border:1px solid transparent;transition:.15s;
+  }
+  .databar.warn .db-btn{background:#8A6D2B;border-color:#8A6D2B;color:#fff}
+  .databar.warn .db-btn:hover{background:#6E5520;border-color:#6E5520}
+  .databar.warn .db-btn.ghost{background:#fff;border-color:#E4D3A8;color:#8A6D2B}
+  .databar.warn .db-btn.ghost:hover{background:#F7EFDA}
+  .databar.ok .db-btn.ghost{background:#fff;border-color:#CFE6D8;color:#2E6B50}
+  .databar.ok .db-btn.ghost:hover{background:#E7F3EC}
+  .databar.link .db-btn{background:#2E5A9E;border-color:#2E5A9E;color:#fff}
+  .databar.link .db-btn:hover{background:#24497F;border-color:#24497F}
+  .databar.link .db-btn.ghost{background:#fff;border-color:#D6E0F0;color:#3B5A8C}
+  .databar.link .db-btn.ghost:hover{background:#E4EBF7}
+  .databar .db-pend{color:#B03A3A;font-weight:600}
+
+  /* ---------- 标题 ---------- */
+  .page-head{display:flex;align-items:center;gap:14px;margin-bottom:13px;padding-left:2px}
+  .brand{display:flex;align-items:center;gap:10px}
+  /* 左边一小条暖色渐变色标，呼应下面两条轴的颜色语言 */
+  .brand .mark{
+    width:6px;height:19px;border-radius:3px;flex:none;
+    background:linear-gradient(180deg,#E8C283 0%,#C46A56 45%,#8A3FB6 100%);
+  }
+  .brand h1{
+    /* 标题用衬线体（slides 的标题字体），字重压到 500 避免 Windows 上宋体伪粗发虚 */
+    font-family:var(--serif);
+    font-size:20px;font-weight:500;letter-spacing:.06em;color:var(--navy);
+    line-height:1.2;
+  }
+  .brand .tagline{
+    font-size:11.5px;font-weight:500;color:var(--ink-2);letter-spacing:.05em;
+    background:#F1F3F7;padding:3px 10px;border-radius:999px;
+  }
+
+  /* ---------- 总览卡片（刻意压扁，把版面让给下面的岗位列表）---------- */
+  .overview{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:15px 22px 16px;margin-bottom:16px;
+  }
+
+  /* 第一行：左边统计数字，右边功能按钮 */
+  .overview-top{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;padding-bottom:11px;border-bottom:1px solid var(--line);
+  }
+
+  /* KPI：一排紧凑数字，每个都可点击筛选 */
+  .kpis{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:flex-end}
+  .kpi{
+    display:flex;flex-direction:column;gap:0;
+    padding:5px 11px 5px;border-radius:9px;cursor:pointer;
+    transition:background .15s, box-shadow .15s;
+  }
+  .kpi:hover{background:#F4F6FA}
+  .kpi.on{background:#EDF1FA;box-shadow:inset 0 0 0 1px #D3DDF0}
+  .kpi .k-label{font-size:11.5px;color:var(--ink-3);letter-spacing:.03em}
+  .kpi.on .k-label{color:var(--navy)}
+  .kpi .k-num{font-size:23px;font-weight:700;line-height:1.2;color:var(--navy);font-variant-numeric:tabular-nums}
+  .kpi .k-num .unit{font-size:12px;font-weight:500;color:var(--ink-3);margin-left:2px}
+  .kpi.is-offer .k-num{color:#1F8A5B}
+  .kpi.is-offer .k-label{color:#2E6B50}
+  .kpi.is-offer.on{background:#EBF6F0;box-shadow:inset 0 0 0 1px #BCE0CC}
+
+  /* ---------- 两条轴：标签左置，省掉两行标题 ---------- */
+  .axis{display:flex;gap:13px;align-items:flex-start;margin-top:13px}
+  .axis-label{
+    width:34px;flex:none;height:30px;display:flex;align-items:center;
+    font-size:12px;font-weight:600;color:var(--navy);letter-spacing:.04em;
+  }
+  .axis-main{flex:1;min-width:0}
+
+  /* 段与段无缝拼接；文字常态就显示，悬停只是轻微抬起 */
+  .pipeline{
+    display:flex;width:100%;height:30px;
+    align-items:center;gap:0;
+  }
+  .bar-empty{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    font-size:12.5px;color:var(--ink-3);
+  }
+  .seg{
+    position:relative;display:flex;align-items:center;justify-content:center;
+    min-width:3px;height:22px;border-radius:0;cursor:pointer;
+    overflow:hidden;              /* 放不下的文字直接裁掉，不会溢到隔壁段上 */
+    /* 缓动与 html-slides 的进度条一致：平滑减速，无过冲 */
+    transition:flex-grow    .50s cubic-bezier(.22,1,.36,1),
+               height       .38s cubic-bezier(.22,1,.36,1),
+               border-radius .38s cubic-bezier(.22,1,.36,1),
+               filter       .20s;
+  }
+  .seg:first-child{border-radius:6px 0 0 6px}
+  .seg:last-child{border-radius:0 6px 6px 0}
+
+  /* 悬停只是轻微抬起，幅度刻意克制 */
+  .pipeline:hover .seg{height:25px}
+  .pipeline:hover .seg:hover{height:30px;border-radius:7px}
+  .pipeline:hover .seg:hover + .seg:not(.sel),
+  .pipeline:hover .seg:not(.sel):has(+ .seg:hover){height:27px;border-radius:6px}
+
+  /* 已选中的那一段保持抬起（不用外框、不用灰化） */
+  .pipeline .seg.sel{height:30px;border-radius:7px}
+
+  .pipeline:hover .seg:hover,
+  .pipeline .seg.sel{z-index:3;box-shadow:0 4px 12px rgba(16,32,64,.20)}
+  .pipeline:hover .seg:hover{filter:brightness(.95)}
+
+  /* 文字常态就显示；放不下的段由 JS 决定不显示（见 fitSegLabels）
+     用无衬线：小字号下衬线体笔画太细，不如无衬线清楚 */
+  .seg .n{
+    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    color:#fff;opacity:0;transition:opacity .2s;
+  }
+  .seg.show-num .n{opacity:1}
+
+  /* 空心：待投递不属于流水线（用 border 而非 box-shadow，免得和抬起的投影打架） */
+  .seg.is-hollow{background:#F5F4F2;border:1.5px solid #CFC9C0}
+  .seg.is-hollow .n{color:#6B6257}
+  .seg.is-hollow:hover,.seg.is-hollow.sel{background:#EDEBE7}
+
+  /* 段内标签：名称 / 数字各自独立控制显隐（由 fitSegLabels 按实际宽度决定） */
+  .seg .iname{
+    font-size:11.5px;font-weight:600;color:#fff;white-space:nowrap;
+    margin-right:5px;opacity:0;transition:opacity .2s;pointer-events:none;
+  }
+  .seg .n{pointer-events:none}
+  .seg.show-name .iname{opacity:1}
+  .seg.show-num  .n{opacity:1}
+
+  /* ---------- 列表 ---------- */
+  /* 不再用 overflow:hidden —— 否则内部 sticky 表头会失效。
+     列表也不限高，让整页滚动，把版面全让给岗位列表。 */
+  .panel{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    margin-bottom:20px;
+  }
+  /* 筛选提示条：没有筛选时整条不显示，不占高度 */
+  .panel-head{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 20px;border-bottom:1px solid var(--line);
+  }
+  .panel-head.hide{display:none}
+  .fhint{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;font-weight:500;color:var(--ink-2);
+    background:#F3F5F9;border-radius:7px;padding:3px 6px 3px 10px;
+  }
+  .fhint .clr{
+    border:none;background:#E2E7EF;color:var(--ink-2);cursor:pointer;
+    border-radius:5px;padding:1px 7px;font-size:12px;font-family:inherit;
+  }
+  .fhint .clr:hover{background:#D3DAE5;color:var(--ink)}
+  .fhint-all{font-size:12.5px;font-weight:400;color:var(--ink-3)}
+  .empty{padding:44px 20px;text-align:center;color:var(--ink-3);font-size:13px}
+
+  /* ---------- 批量管理 ---------- */
+  .batch-bar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:9px 20px;border-bottom:1px solid var(--line);background:#F7FAFE;
+    font-size:12.5px;color:var(--ink-2);
+  }
+  .batch-bar.hide{display:none}
+  .batch-bar .cnt b{color:var(--navy);font-variant-numeric:tabular-nums}
+  .batch-bar .sp{flex:1}
+  .batch-bar .btn{padding:4px 10px;font-size:12px}
+  /* 勾选框只做视觉：点击交给整行处理，避免原生勾选和行点击各翻一次 */
+  .row .pick{
+    margin:0 8px 0 0;vertical-align:-2px;
+    accent-color:var(--navy);cursor:pointer;pointer-events:none;
+  }
+  .row.data.picked{background:#F0F6FD}
+  .row.data.picked:hover{background:#E8F1FC}
+  .btn.on{background:#EAF1FA;border-color:#C9D8EC;color:var(--navy)}
+
+  .rows{min-height:180px}
+  /* 列宽由 fitColumns() 实测各列内容宽度后按比例分配（--cols 是一串 fr 值）。
+     这样留白会摊到每一列，不会全堆在某一列形成大洞。 */
+  .row{
+    display:grid;
+    grid-template-columns:var(--cols, 82fr 140fr 66fr 74fr 40fr 150fr);
+    align-items:center;gap:11px;padding:11px 20px;border-bottom:1px solid #F2F4F7;
+  }
+  /* 单元格统一裁切，既让长文本省略号收尾，也让 scrollWidth 能量到真实内容宽度 */
+  .row > div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row:last-child{border-bottom:none}
+  .row.head{
+    position:sticky;top:0;z-index:1;background:#FAFBFD;
+    font-size:11.5px;color:var(--ink-3);letter-spacing:.04em;
+    padding-top:9px;padding-bottom:9px;border-bottom:1px solid var(--line);
+  }
+  .row .co{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .pos{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .next{color:var(--ink-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .date{color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* 行首纵轴：DDL 紧急度色条 */
+  .row.data::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:var(--ddl, transparent);
+  }
+  /* DDL 高亮小胶囊 */
+  .ddl-chip{
+    display:inline-block;padding:1px 7px;border-radius:5px;
+    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    margin-right:7px;white-space:nowrap;
+  }
+
+  .chip{
+    display:inline-block;padding:3px 10px;border-radius:6px;
+    font-size:12px;font-weight:600;white-space:nowrap;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+  }
+  .chip.is-hollow{background:#F5F4F2;color:#6B6257;box-shadow:inset 0 0 0 1px #CFC9C0}
+  .tag{display:inline-block;padding:2px 8px;border-radius:5px;background:#F0F2F6;color:var(--ink-2);font-size:11.5px}
+
+  /* ---------- 页脚：版权声明 ---------- */
+  .page-foot{
+    margin-top:28px;padding-top:16px;border-top:1px solid var(--line);
+    text-align:center;font-size:11.5px;line-height:1.9;
+  }
+  .page-foot .copy{color:#A8B0BC;letter-spacing:.02em}
+  .page-foot .tip{color:#C6CCD4}
+
+  /* ---------- 工具按钮 ---------- */
+  .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{
+    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink-2);
+    padding:6px 13px;border-radius:8px;transition:.15s;white-space:nowrap;
+  }
+  .btn:hover{background:#F5F7FA;border-color:#D5DBE5;color:var(--ink)}
+  .btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+  .btn.primary:hover{background:#123A75;border-color:#123A75;color:#fff}
+  .btn.danger{color:#B03A3A;border-color:#EBC8C8}
+  .btn.danger:hover{background:#FDF1F1;border-color:#DFAFAF;color:#8E2B2B}
+
+  /* ---------- 邮箱同步待确认 ---------- */
+  .pending{
+    background:#FBFCFE;border:1px solid #D6E0F0;border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow);
+  }
+  .pending-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .pending-title{font-size:13.5px;font-weight:700;color:#3B5A8C}
+  .pending-title b{font-size:15px;color:#1B2333;font-variant-numeric:tabular-nums}
+  .pending-tip{font-size:11.5px;color:var(--ink-3)}
+  .pending-list{display:flex;flex-direction:column;gap:8px}
+  .pending-item{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+  }
+  .pi-main{flex:1;min-width:200px}
+  .pi-title{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .pi-title .pi-kind{
+    font-size:11px;font-weight:600;color:#8A6D2B;background:#FFF9EC;
+    border:1px solid #F2E4C4;border-radius:5px;padding:1px 6px;margin-right:7px;
+  }
+  .pi-meta{font-size:12px;color:var(--ink-2);margin-top:3px}
+  .pi-why{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .pi-actions{display:flex;gap:8px}
+
+  /* ---------- JD 留存 ---------- */
+  .jdpanel{margin-top:16px}
+  .jd-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .jd-head h2{font-size:14px;font-weight:700;color:var(--ink)}
+  .jd-tip{font-size:11.5px;color:var(--ink-3);line-height:1.5}
+  .jd-head .spacer{flex:1}
+  .jd-list{display:flex;flex-direction:column}
+  .jd-item{padding:12px 18px;border-bottom:1px solid var(--line)}
+  .jd-item:last-child{border-bottom:0}
+  .jd-item-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .jd-item-title{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .jd-tag{font-size:11px;font-weight:600;border-radius:5px;padding:1px 7px;white-space:nowrap}
+  .jd-tag.open{color:#8A6D2B;background:#FFF9EC;border:1px solid #F2E4C4}
+  .jd-tag.applied{color:#1F6D4A;background:#EBF6F0;border:1px solid #BCE0CC}
+  .jd-item-meta{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .jd-item-text{font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:8px;
+    white-space:pre-wrap;word-break:break-word;
+    background:#FAFBFD;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+    max-height:none}
+  .jd-item-text.collapsed{
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+  .jd-item-acts{display:flex;gap:8px;margin-left:auto}
+  .jd-textarea{min-height:240px;max-height:56vh;font-size:12.5px;line-height:1.65;resize:vertical}
+  .jd-parse{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:2px}
+  .jd-parse-label{font-size:12px;color:var(--ink-3);white-space:nowrap;flex:none}
+  .jd-parse input{flex:1 1 0;min-width:0;font-family:inherit;font-size:12.5px;padding:7px 11px;
+    border:1px solid var(--line);border-radius:8px;color:var(--ink);background:#fff}
+  .jd-parse input:focus{outline:none;border-color:#B9C6DA;box-shadow:0 0 0 3px rgba(11,42,91,.06)}
+  .jd-dot{color:var(--ink-3);flex:none}
+  @media (max-width:640px){
+    .pending-item{flex-direction:column;align-items:stretch}
+    .pi-actions{justify-content:flex-end}
+  }
+
+  /* ---------- 示例数据提示条 ---------- */
+  .notice{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    background:#FFF9EC;border-bottom:1px solid #F2E4C4;color:#8A6D2B;
+    font-size:12.5px;padding:10px 20px;line-height:1.5;
+  }
+  .notice button{
+    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    background:#fff;border:1px solid #E4D3A8;color:#8A6D2B;
+    padding:4px 11px;border-radius:7px;white-space:nowrap;
+  }
+  .notice button:hover{background:#F7EFDA}
+
+  /* ---------- 行可点击 ---------- */
+  .row.data{position:relative;cursor:pointer;transition:background .12s}
+  .row.data:hover{background:#FAFBFD}
+  .chip.clickable{cursor:pointer;transition:filter .15s}
+  .chip.clickable:hover{filter:brightness(.93)}   /* 不用放大，免得被单元格裁掉 */
+  .note-dot{font-size:11px;opacity:.65}
+
+  /* ---------- 状态快选菜单 ---------- */
+  .status-menu{
+    position:fixed;z-index:60;background:#fff;border-radius:12px;
+    box-shadow:0 8px 34px rgba(16,32,64,.18), 0 0 0 1px rgba(16,32,64,.07);
+    padding:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px;width:268px;
+  }
+  .status-menu .sm-head{
+    grid-column:1/-1;font-size:11.5px;color:var(--ink-3);
+    padding:3px 9px 6px;border-bottom:1px solid var(--line);margin-bottom:3px;
+  }
+  .status-menu button{
+    display:flex;align-items:center;gap:7px;font-family:inherit;
+    font-size:12.5px;color:var(--ink);background:none;border:none;cursor:pointer;
+    padding:7px 9px;border-radius:7px;text-align:left;white-space:nowrap;
+  }
+  .status-menu button:hover{background:#F3F5F9}
+  .status-menu button.on{background:#EDF1FA;font-weight:700;color:var(--navy)}
+  .status-menu button i{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+
+  /* ---------- 弹窗 ---------- */
+  .modal-mask{
+    position:fixed;inset:0;z-index:80;background:rgba(16,28,48,.42);
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-mask.open{display:flex}
+  .modal{
+    background:#fff;border-radius:16px;width:100%;max-width:540px;
+    max-height:90vh;display:flex;flex-direction:column;
+    box-shadow:0 24px 70px rgba(10,24,48,.3);
+  }
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:17px 22px;border-bottom:1px solid var(--line)}
+  .modal-head h3{font-size:15px;font-weight:700;color:var(--navy)}
+  .modal-head .x{border:none;background:none;font-size:23px;line-height:1;color:var(--ink-3);cursor:pointer;padding:0 4px}
+  .modal-head .x:hover{color:var(--ink)}
+  .modal-body{padding:18px 22px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:12px;color:var(--ink-2);font-weight:600}
+  .field label .req{color:#C0392B}
+  .field input,.field select,.field textarea{
+    font-family:inherit;font-size:13.5px;color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:#fff;
+    width:100%;outline:none;transition:.15s;
+  }
+  /* 备注框：高度由内容撑开（见 autoGrowNote），超过视口一半才内部滚动 */
+  .field textarea{resize:vertical;min-height:66px;line-height:1.65;overflow-y:hidden}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:#8FA8CE;box-shadow:0 0 0 3px rgba(143,168,206,.18)}
+  .modal-foot{display:flex;gap:9px;align-items:center;padding:15px 22px;border-top:1px solid var(--line)}
+  .modal-foot .spacer{flex:1}
+  .err{color:#B03A3A;font-size:12px}
+
+  /* ---------- 侧拉面板：DDL 时间轴 ---------- */
+  .drawer-mask{
+    position:fixed;inset:0;z-index:56;background:rgba(16,28,48,.34);
+    opacity:0;visibility:hidden;
+    transition:opacity .28s ease, visibility .28s;
+  }
+  .drawer-mask.open{opacity:1;visibility:visible}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;width:384px;max-width:90vw;z-index:58;
+    background:var(--card);display:flex;flex-direction:column;
+    box-shadow:-14px 0 44px rgba(10,24,48,.20);
+    transform:translateX(101%);
+    transition:transform .36s cubic-bezier(.22,1,.36,1);
+  }
+  .drawer.open{transform:none}
+  .drawer-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:16px 18px;border-bottom:1px solid var(--line);flex:none;
+  }
+  .drawer-head h3{font-size:14px;font-weight:700;color:var(--navy)}
+  .drawer-head .x{border:none;background:none;font-size:23px;line-height:1;color:var(--ink-3);cursor:pointer;padding:0 4px}
+  .drawer-head .x:hover{color:var(--ink)}
+  .drawer-body{flex:1;overflow:auto;padding:4px 0 28px}
+
+  .ddl-group{padding:6px 16px 0}
+  .ddl-group-head{
+    display:flex;align-items:baseline;gap:8px;padding:9px 0 6px;
+    border-top:1px dashed var(--line);
+  }
+  .ddl-group:first-child .ddl-group-head{border-top:none}
+  .ddl-group-head .g-t{font-size:12.5px;font-weight:700;color:var(--navy)}
+  .ddl-group-head .g-d{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .ddl-group-head .g-badge{
+    margin-left:auto;font-size:10.5px;font-weight:700;
+    padding:1px 7px;border-radius:999px;flex:none;
+  }
+  .ddl-item{
+    display:flex;gap:9px;align-items:stretch;padding:8px 10px;border-radius:9px;
+    cursor:pointer;transition:background .15s;
+  }
+  .ddl-item:hover{background:#F4F6FA}
+  .ddl-item .bar{width:3px;border-radius:2px;flex:none}
+  .ddl-item .txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px}
+  .ddl-item .t1{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ddl-item .t2{font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ddl-empty{padding:46px 22px;text-align:center;color:var(--ink-3);font-size:13px;line-height:1.9}
+  /* 已过期分区：沉到列表最下面，用一条分隔线跟待办区分开 */
+  .ddl-sep{
+    display:flex;align-items:center;gap:9px;
+    margin:18px 16px 2px;font-size:11.5px;color:var(--ink-3);letter-spacing:.04em;
+  }
+  .ddl-sep::before,.ddl-sep::after{content:'';height:1px;flex:1;background:var(--line)}
+  .ddl-sep + .ddl-group .ddl-group-head{border-top:none}   /* 上面已有分隔线，不再叠一条虚线 */
+
+  /* 工具按钮上的红色数字角标 */
+  .btn .badge{
+    display:none;margin-left:6px;background:#D2452F;color:#fff;
+    font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;
+    font-variant-numeric:tabular-nums;
+  }
+  .btn .badge.on{display:inline-block}
+
+  /* ---------- 弹窗里的进度时间线 ---------- */
+  .tl-hint{font-weight:400;color:var(--ink-3);font-size:11.5px;margin-left:5px}
+  .tl-hint b{color:var(--ink-2);font-weight:600}
+  .timeline{display:flex;flex-direction:column;gap:6px}
+  .tl-row{display:grid;grid-template-columns:110px 132px 1fr 26px;gap:7px;align-items:center}
+  .tl-row select,.tl-row input{
+    font-family:inherit;font-size:12.5px;color:var(--ink);
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;
+    width:100%;outline:none;transition:.15s;
+  }
+  .tl-row select:focus,.tl-row input:focus{border-color:#8FA8CE;box-shadow:0 0 0 3px rgba(143,168,206,.18)}
+  .tl-row .tl-x{
+    border:1px solid transparent;background:none;color:var(--ink-3);
+    font-size:17px;line-height:1;cursor:pointer;border-radius:6px;padding:2px 0;
+  }
+  .tl-row .tl-x:hover{background:#FDF1F1;color:#B03A3A;border-color:#EBC8C8}
+  .tl-row .tl-x:disabled{opacity:.25;cursor:not-allowed;background:none;border-color:transparent;color:var(--ink-3)}
+  .tl-add{
+    margin-top:7px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    background:#F5F7FA;border:1px dashed #D5DBE5;color:var(--ink-2);
+    padding:6px;border-radius:8px;width:100%;
+  }
+  .tl-add:hover{background:#EDF1F7;color:var(--navy);border-color:#B9C6D8}
+
+  @media (max-width:560px){
+    .modal-body{grid-template-columns:1fr}
+    .tl-row{grid-template-columns:1fr 1fr 26px;gap:6px}
+    .tl-row .tl-n{grid-column:1/3}
+  }
+
+  @media (max-width:760px){
+    body{padding:18px 14px 40px}
+    .kpis{gap:6px 20px}
+    .axis-label{width:28px;font-size:11px}
+    .row{grid-template-columns:96px 1fr 84px 92px;gap:10px}
+    .row .date,.row .next{display:none}
+    .row.head .date,.row.head .next{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ========== 数据位置状态条 ========== -->
+  <div class="databar" id="databar"></div>
+
+  <!-- ========== 标题 ========== -->
+  <div class="page-head">
+    <div class="brand">
+      <span class="mark"></span>
+      <h1>一切顺利</h1>
+      <span class="tagline">投递看板</span>
+    </div>
+  </div>
+
+  <!-- ========== 邮箱同步待确认（有才显示） ========== -->
+  <section class="pending" id="pendingBar" hidden></section>
+
+  <!-- ========== 总览（刻意压扁，把版面让给下面的岗位列表） ========== -->
+  <section class="overview">
+    <div class="overview-top">
+      <div class="kpis" id="kpis"></div>
+      <div class="tools">
+        <button class="btn primary" id="addBtn">+ 新增岗位</button>
+        <button class="btn" id="ddlBtn">📅 待办 DDL<span class="badge" id="ddlBadge"></span></button>
+        <button class="btn" id="batchBtn" title="勾选多条记录后批量删除">☑ 批量管理</button>
+        <button class="btn" id="jdBtn" title="看到想投的岗位先存下来，真投了会自动写进那条记录的备注">📋 JD 留存<span class="badge" id="jdBadge"></span></button>
+      </div>
+    </div>
+
+    <div class="axis">
+      <div class="axis-label">进度</div>
+      <div class="axis-main">
+        <div class="pipeline" id="pipeline"></div>
+      </div>
+    </div>
+
+    <div class="axis">
+      <div class="axis-label">行业</div>
+      <div class="axis-main">
+        <div class="pipeline industry" id="industryBar"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 岗位明细 ========== -->
+  <section class="panel">
+    <div class="notice" id="notice">
+      <span>⚠️ 当前是<b>示例数据</b>，方便你先看效果。正式录入前建议先清空，否则示例会混在你的真实记录里。</span>
+      <button id="clearSample">清空示例，开始录入</button>
+    </div>
+    <!-- 批量管理条：只在批量模式下出现 -->
+    <div class="batch-bar hide" id="batchBar"></div>
+    <!-- 只在实际有筛选时出现，平时不占高度 -->
+    <div class="panel-head hide" id="filterBar"><span id="fhint"></span></div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <!-- ========== JD 留存 ========== -->
+  <section class="panel jdpanel" id="jdPanel" hidden>
+    <div class="jd-head">
+      <h2>📋 JD 留存</h2>
+      <span class="jd-tip">看到想投的岗位先贴在这儿；真投了，邮箱同步会按「公司+岗位」自动把 JD 写进那条记录的备注</span>
+      <div class="spacer"></div>
+      <button class="btn primary" id="jdAddBtn">+ 贴一条 JD</button>
+    </div>
+    <div class="jd-list" id="jdList"></div>
+  </section>
+
+</div>
+
+<!-- ========== 新增 / 编辑弹窗 ========== -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">新增岗位</h3>
+      <button class="x" id="modalClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>公司 <span class="req">*</span></label>
+        <input id="fCompany" placeholder="例如：中信证券">
+      </div>
+      <div class="field">
+        <label>岗位 <span class="req">*</span></label>
+        <input id="fPosition" placeholder="例如：投行部 分析师">
+      </div>
+      <div class="field">
+        <label>行业方向</label>
+        <select id="fIndustry"></select>
+      </div>
+      <div class="field">
+        <label>下一步截止日期 <span class="tl-hint">填了才会在列表高亮</span></label>
+        <input id="fDdl" type="date">
+      </div>
+      <div class="field full">
+        <label>下一步 / 待办</label>
+        <input id="fNext" placeholder="例如：9/28 线上笔试">
+      </div>
+      <div class="field full">
+        <label>备注</label>
+        <textarea id="fNote" placeholder="面试问题、联系人、薪资待遇……（列表里不显示，点开才看到）"></textarea>
+      </div>
+      <div class="field full">
+        <label>进度时间线 <span class="tl-hint">列表和进度条按<b>最后一条</b>显示</span></label>
+        <div class="timeline" id="timelineList"></div>
+        <button type="button" class="tl-add" id="tlAdd">+ 添加一条进度</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn danger" id="delBtn">删除</button>
+      <span class="err" id="modalErr"></span>
+      <div class="spacer"></div>
+      <button class="btn" id="cancelBtn">取消</button>
+      <button class="btn primary" id="saveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 贴 JD 弹窗 ========== -->
+<div class="modal-mask" id="jdMask">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>贴一条 JD</h3>
+      <button class="x" id="jdClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field full">
+        <label>粘贴 JD <span class="tl-hint">Ctrl+Enter 直接保存，公司和职位自动认</span></label>
+        <textarea id="jdText" class="jd-textarea" placeholder="把 JD 整段粘进来就行（Ctrl+V）……"></textarea>
+      </div>
+      <div class="jd-parse">
+        <span class="jd-parse-label">识别为</span>
+        <input id="jdCompany" placeholder="公司（认不出来可手动填）">
+        <span class="jd-dot">·</span>
+        <input id="jdPosition" placeholder="岗位（认不出来可手动填）">
+      </div>
+      <input id="jdUrl" type="hidden">
+    </div>
+    <div class="modal-foot">
+      <span class="err" id="jdErr"></span>
+      <div class="spacer"></div>
+      <button class="btn" id="jdCancel">取消</button>
+      <button class="btn primary" id="jdSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<footer class="page-foot">
+  <div class="copy">一切顺利 · 求职投递看板</div>
+  <div class="tip">数据保存在你选择的本地 JSON 文件里；换电脑时记得带上「我的投递记录.json」</div>
+</footer>
+
+<!-- ========== 侧拉面板：DDL 时间轴 ========== -->
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="drawer" aria-label="待办 DDL">
+  <div class="drawer-head">
+    <h3>待办 DDL · 由近到远</h3>
+    <button class="x" id="drawerClose" title="关闭">×</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+/* =========================================================
+   1. 状态定义（唯一数据源）
+   ========================================================= */
+const STATUSES = [
+  {id:'pending',   name:'待投递',  color:'#F5F4F2', group:'before', ink:'#6B6257', hollow:true},
+  {id:'submitted', name:'已投递',  color:'#F0D9B0', group:'active', ink:'#5C4A22'},
+  {id:'screening', name:'简历筛选', color:'#E8C283', group:'active', ink:'#5C4318'},
+  {id:'test',      name:'测评',    color:'#DFA85B', group:'active', ink:'#4E3A12'},
+  {id:'written',   name:'笔试',    color:'#D2884B', group:'active', ink:'#3F2A0D'},
+  {id:'ai',        name:'AI面试',  color:'#C46A56', group:'active', ink:'#FFFFFF'},
+  {id:'r1',        name:'一面',    color:'#B04E63', group:'active', ink:'#FFFFFF'},
+  {id:'r2',        name:'二面',    color:'#943C77', group:'active', ink:'#FFFFFF'},
+  {id:'final',     name:'终面',    color:'#74308A', group:'active', ink:'#FFFFFF'},
+  {id:'hr',        name:'HR面',   color:'#552389', group:'active', ink:'#FFFFFF'},
+  {id:'verbal',    name:'口头Offer', color:'#8FD3AE', group:'active', ink:'#123D2B'},
+  {id:'offer',     name:'Offer',  color:'#1F8A5B', group:'closed', ink:'#FFFFFF'},
+  {id:'rejected',  name:'已拒绝',  color:'#C4C7CC', group:'closed', ink:'#3A3F47'},
+  {id:'dropped',   name:'已放弃',  color:'#D8CFC4', group:'closed', ink:'#4A4238'},
+];
+const byId = Object.fromEntries(STATUSES.map(s => [s.id, s]));
+const INDUSTRIES = ['银行','券商','公募基金','私募基金','保险','信托','国企央企','选调','互联网','咨询','其他'];
+/* 老存档里的旧分类名 → 新分类名（读到旧数据时自动迁移，不会丢记录） */
+const INDUSTRY_ALIAS = { '基金': '公募基金' };
+
+/* 日期工具（放最前面，示例数据归一化时要用） */
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+/* =========================================================
+   2. 数据
+   ========================================================= */
+/* 示例数据（仅首次打开时使用，点「清空示例」后即消失） */
+/* 每条岗位带一条 timeline（进度时间线）。
+   s=状态 / d=日期 / n=备注。当前进度 = 最后一条。 */
+const SAMPLE_RECORDS = [
+  {id:1,  company:'工商银行',    position:'总行管培生',       industry:'银行',    next:'等HR面结果',
+   timeline:[{s:'submitted',d:'2026-09-02',n:''},{s:'written',d:'2026-09-18',n:'行测 + 专业卷'},{s:'r1',d:'2026-09-25',n:''},{s:'hr',d:'2026-10-12',n:'已谈薪'}]},
+  {id:2,  company:'中信证券',    position:'投行部 分析师',     industry:'券商',    next:'10/21 二面', ddl:'2026-10-21',
+   timeline:[{s:'submitted',d:'2026-09-05',n:''},{s:'screening',d:'2026-09-15',n:''},{s:'r1',d:'2026-09-28',n:'简历深挖'},{s:'r2',d:'2026-10-10',n:''}]},
+  {id:3,  company:'易方达基金',  position:'行业研究员',       industry:'公募基金',    next:'一面：自我介绍 + 估值', ddl:'2026-10-20',
+   timeline:[{s:'submitted',d:'2026-09-08',n:''},{s:'written',d:'2026-09-20',n:''},{s:'r1',d:'2026-10-09',n:'已过筛'}]},
+  {id:4,  company:'招商银行',    position:'金融科技岗',       industry:'银行',    next:'9/28 线上笔试',
+   timeline:[{s:'submitted',d:'2026-09-10',n:''},{s:'screening',d:'2026-09-16',n:''},{s:'written',d:'2026-09-28',n:'线上机考'}]},
+  {id:5,  company:'中金公司',    position:'研究部 助理',       industry:'券商',    next:'AI 面结果待通知', ddl:'2026-10-13',
+   timeline:[{s:'submitted',d:'2026-09-11',n:''},{s:'screening',d:'2026-09-19',n:''},{s:'ai',d:'2026-10-05',n:'AI 面试录制'}]},
+  {id:6,  company:'国家电网',    position:'财务共享中心',     industry:'国企央企', next:'简历筛选中',
+   timeline:[{s:'submitted',d:'2026-09-12',n:''},{s:'screening',d:'2026-09-22',n:''}]},
+  {id:7,  company:'中国平安',    position:'精算岗',           industry:'保险',    next:'Offer 答复截止', ddl:'2026-10-20',
+   timeline:[{s:'submitted',d:'2026-08-28',n:''},{s:'test',d:'2026-09-05',n:''},{s:'r1',d:'2026-09-15',n:''},{s:'r2',d:'2026-09-24',n:''},{s:'final',d:'2026-10-06',n:''},{s:'offer',d:'2026-10-10',n:'待答复'}]},
+  {id:8,  company:'华泰证券',    position:'机构销售',         industry:'券商',    next:'—',
+   timeline:[{s:'submitted',d:'2026-08-25',n:''},{s:'screening',d:'2026-09-02',n:''},{s:'rejected',d:'2026-09-14',n:'简历关'}]},
+  {id:9,  company:'南方基金',    position:'量化研究',         industry:'公募基金',    next:'完成在线测评', ddl:'2026-10-23',
+   timeline:[{s:'submitted',d:'2026-09-14',n:''},{s:'screening',d:'2026-09-21',n:''},{s:'test',d:'2026-09-29',n:'性格测评'}]},
+  {id:10, company:'建设银行',    position:'省分行管培',       industry:'银行',    next:'笔试通知未到，需跟催', ddl:'2026-10-12',
+   timeline:[{s:'submitted',d:'2026-09-16',n:''}]},
+  {id:11, company:'腾讯',        position:'金融风控',         industry:'互联网',  next:'等一面结果', ddl:'2026-10-19',
+   timeline:[{s:'submitted',d:'2026-09-03',n:''},{s:'screening',d:'2026-09-10',n:''},{s:'written',d:'2026-09-16',n:''},{s:'r1',d:'2026-09-25',n:''}]},
+  {id:12, company:'中信建投',    position:'债券承做',         industry:'券商',    next:'等通知',
+   timeline:[{s:'submitted',d:'2026-09-17',n:''}]},
+  {id:13, company:'中国人寿',    position:'投资岗',           industry:'保险',    next:'简历筛选中',
+   timeline:[{s:'submitted',d:'2026-09-15',n:''},{s:'screening',d:'2026-09-23',n:''}]},
+  {id:14, company:'广发基金',    position:'渠道销售',         industry:'公募基金',    next:'等通知',
+   timeline:[{s:'submitted',d:'2026-09-18',n:''}]},
+  {id:15, company:'中石油',      position:'财务管培',         industry:'国企央企', next:'尽快投递', ddl:'2026-10-15',
+   timeline:[{s:'pending',d:'2026-10-13',n:'10/15 截止'}]},
+  {id:16, company:'阿里巴巴',    position:'战略投资',         industry:'互联网',  next:'—',
+   timeline:[{s:'submitted',d:'2026-09-01',n:''},{s:'screening',d:'2026-09-09',n:''},{s:'rejected',d:'2026-09-20',n:'一面后未过'}]},
+  {id:17, company:'国泰君安',    position:'研究所 实习生转正', industry:'券商',    next:'等终面安排',
+   timeline:[{s:'submitted',d:'2026-08-30',n:''},{s:'r1',d:'2026-09-12',n:'带教面'},{s:'r2',d:'2026-09-22',n:'首席面'},{s:'final',d:'2026-10-07',n:''}]},
+  {id:18, company:'交通银行',    position:'总行研发',         industry:'银行',    next:'线上笔试', ddl:'2026-10-16',
+   timeline:[{s:'submitted',d:'2026-09-13',n:''},{s:'screening',d:'2026-09-21',n:''},{s:'written',d:'2026-09-30',n:''}]},
+  {id:19, company:'平安信托',    position:'信托业务岗',       industry:'信托',    next:'等通知', ddl:'2026-10-28',
+   timeline:[{s:'submitted',d:'2026-09-19',n:''}]},
+  {id:20, company:'贝恩咨询',    position:'咨询顾问',         industry:'咨询',    next:'已放弃（时间冲突）',
+   timeline:[{s:'submitted',d:'2026-08-20',n:''},{s:'screening',d:'2026-08-28',n:''},{s:'dropped',d:'2026-09-10',n:'与实习冲突'}]},
+  {id:21, company:'中国银行',    position:'综合柜员/管培',     industry:'银行',    next:'尽快投递', ddl:'2026-10-18',
+   timeline:[{s:'pending',d:'2026-10-14',n:'10/18 截止'}]},
+  {id:22, company:'博时基金',    position:'固收研究',         industry:'公募基金',    next:'二面', ddl:'2026-10-24',
+   timeline:[{s:'submitted',d:'2026-09-06',n:''},{s:'written',d:'2026-09-17',n:''},{s:'r1',d:'2026-09-27',n:''},{s:'r2',d:'2026-10-11',n:''}]},
+  {id:23, company:'国家开发银行', position:'评审岗',          industry:'国企央企', next:'等笔试通知', ddl:'2026-10-30',
+   timeline:[{s:'submitted',d:'2026-09-20',n:''}]},
+  {id:24, company:'兴业证券',    position:'资管 产品经理',     industry:'券商',    next:'完成性格测评',
+   timeline:[{s:'submitted',d:'2026-09-12',n:''},{s:'screening',d:'2026-09-20',n:''},{s:'test',d:'2026-09-28',n:''}]},
+  {id:25, company:'某省定向选调', position:'省直机关 财经岗',   industry:'选调',    next:'资格审查中',
+   timeline:[{s:'submitted',d:'2026-09-21',n:''},{s:'screening',d:'2026-09-30',n:'资格复审'}]},
+];
+
+/* =========================================================
+   2.1 本地存储
+   ========================================================= */
+const STORAGE_KEY = 'qiuzhao-records-v1';
+let isSample = false;                    // 当前展示的是否为示例数据
+
+/* 把任意形状的记录统一成 {id,company,position,industry,next,note,timeline[]}
+   老版本只有 status/date 的存档会自动转成"一条时间线"。 */
+/* 邮箱同步脚本会把「扫到但还没确认」的记录直接写进数据文件，带 _pending 标记。
+   这里把正式记录和待确认记录分开：正文列表只用正式的，待确认单独显示在顶部，
+   点「确认」才转正，点「忽略」就标记 _ignored（脚本下轮会记下来不再提示）。 */
+let PENDING = [];
+
+/* JD 留存：看到想投的岗位先贴进来，等真投了再匹配到投递记录上。
+   和待确认一样，都躺在同一个 JSON 文件里，靠标记区分。 */
+let JDS = [];
+const jdCollapsed = new Set();      // 哪些 JD 被手动收起（默认全部展开）
+
+function splitPending(arr){
+  const main = [], pend = [], jds = [];
+  (Array.isArray(arr) ? arr : []).forEach(r => {
+    if (!r) return;
+    if (r._jd) jds.push(r);
+    else if (r._pending || r._ignored) pend.push(r);
+    else main.push(r);
+  });
+  return [main, pend, jds];
+}
+
+function normalize(r, i){
+  const list = (Array.isArray(r.timeline) ? r.timeline : [])
+    .filter(e => e && byId[e.s])
+    .map(e => ({ s: e.s, d: (e.d && e.d !== '—') ? e.d : todayStr(), n: e.n || '' }));
+
+  if (!list.length){            // 旧数据：用 status + date 造第一条
+    list.push({
+      s: byId[r.status] ? r.status : 'pending',
+      d: (r.date && r.date !== '—') ? r.date : todayStr(),
+      n: '',
+    });
+  }
+  list.sort((a,b) => a.d.localeCompare(b.d));   // 日期升序；同日期保持录入顺序
+
+  return {
+    id:       Number(r.id) || i + 1,
+    company:  r.company  || '(未填公司)',
+    position: r.position || '(未填岗位)',
+    industry: (() => {
+      const v = INDUSTRY_ALIAS[r.industry] || r.industry;   // 旧的「基金」→「公募基金」
+      return INDUSTRIES.includes(v) ? v : '其他';
+    })(),
+    next:     r.next || '—',
+    note:     r.note || '',
+    ddl:      /^\d{4}-\d{2}-\d{2}$/.test(r.ddl || '') ? r.ddl : '',   // 下一步的截止日期
+    timeline: list,
+  };
+}
+
+function loadRecords(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw){
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)){                        // 空数组也算有效 = 用户清空过
+        const [main, pend, jds] = splitPending(arr);
+        if (pend.length) PENDING = pend;
+        if (jds.length) JDS = jds;
+        return main.map(normalize);
+      }
+    }
+  }catch(e){ console.warn('读取本地数据失败：', e); }
+
+  isSample = true;                          // 没有存档 → 首次打开，给示例
+  return SAMPLE_RECORDS.map(normalize);
+}
+
+/* 每次改动都调用。
+   ① 永远写一份到浏览器 localStorage —— 兜底，连不上文件时也不至于丢
+   ② 连了数据文件，就同时写进那个文件 —— 这才是长久保存的地方 */
+function saveRecords(){
+  try{
+    // 连待确认和 JD 一起存，浏览器兜底那份才完整
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(RECORDS.concat(PENDING, JDS)));
+  }catch(e){
+    console.warn('写入浏览器存储失败：', e);
+  }
+
+  if (typeof fileState === 'undefined' || fileState.mode !== 'file' || !fileState.handle){
+    // 以前用过数据文件，但现在没连上 —— 这改动只进了浏览器，必须让用户知道
+    if (fileState && fileState.hadFile && !fileState.pending){
+      fileState.pending = true;
+      renderDataBar();
+    }
+    return;
+  }
+
+  setSaveState('saving');
+  writeDataFile()
+    .then(() => setSaveState('ok'))
+    .catch(err => {
+      setSaveState('err', err.name + ': ' + err.message);
+      if (err.name === 'NotAllowedError' || err.name === 'SecurityError'){
+        fileState.mode = 'need-permission';   // 授权过期了，改成提示重新连接
+        renderDataBar();
+      }
+    });
+}
+
+let RECORDS = loadRecords();
+
+/* =========================================================
+   3. 状态
+   ========================================================= */
+let filterStatus   = null;   // 单个状态筛选，null = 不限
+let filterGroup    = null;   // 分组筛选（点总板的数字），null = 不限
+let filterIndustry = null;   // 行业筛选，null = 不限
+
+/* 批量管理：开启后每行前面出现勾选框，勾中的记录可以一次性删除 */
+let batchMode = false;
+const picked  = new Set();   // 勾中的记录 id；只保留当前列表里可见的那些
+
+/* 行业配色（冷色 / 中性系，与暖调的进度流水线刻意分开，避免混淆） */
+const IND_COLOR = {
+  '银行':'#3E6E9E', '券商':'#2E8E9E', '公募基金':'#3F8F5F', '私募基金':'#2F6F5C',
+  '保险':'#7A8F35', '信托':'#6E5FA8', '国企央企':'#55647A', '选调':'#A2536F', '互联网':'#2E7A9E',
+  '咨询':'#96806B', '其他':'#7C838C',
+};
+
+/* ---------- 时间线派生量：岗位的"当前状态"= 时间线最后一条 ---------- */
+const lastEv   = r => (r.timeline && r.timeline.length) ? r.timeline[r.timeline.length-1] : null;
+const curStatus = r => lastEv(r) ? lastEv(r).s : 'pending';   // 当前进度
+const firstDate = r => (r.timeline && r.timeline.length) ? r.timeline[0].d : '';          // 投递日期
+const lastDate  = r => lastEv(r) ? lastEv(r).d : '';                                     // 最新时间
+
+/* 逗号/短横线格式化为 10-08 */
+const md = d => (d && d.length >= 10) ? d.slice(5) : (d || '—');
+
+/* ---------- DDL 紧急度 ---------- */
+const DAY_MS = 86400000;
+const daysTo = d => {
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const t = new Date(d + 'T00:00:00');
+  if (isNaN(t.getTime())) return null;
+  const n = new Date(); n.setHours(0,0,0,0);
+  return Math.round((t - n) / DAY_MS);
+};
+const urgency = n => (n === null) ? null
+  : n <  0 ? 'past'
+  : n <= 1 ? 'now'
+  : n <= 3 ? 'soon'
+  : n <= 7 ? 'week'
+  : 'far';
+const URG = {
+  past: {stripe:'#A32C2C', bg:'#FBEAEA', fg:'#8E2626', label:'已过期'},
+  now:  {stripe:'#D2452F', bg:'#FDEDE9', fg:'#A8371F', label:'紧急'},
+  soon: {stripe:'#E07B33', bg:'#FDF2E6', fg:'#9C5A1B', label:'临期'},
+  week: {stripe:'#D8AC3A', bg:'#FCF6E2', fg:'#8A6E14', label:'本周内'},
+  far:  {stripe:'#9FB0C0', bg:'#EEF2F6', fg:'#5C6E80', label:'远期'},
+};
+
+/* 总板上四个数字各自的含义（点击即按这个分组筛选） */
+const GROUPS = {
+  all:       {label:'全部岗位', test: () => true},
+  written:   {label:'笔试环节', test: r => ['test','written'].includes(curStatus(r))},
+  interview: {label:'面试环节', test: r => ['ai','r1','r2','final','hr','verbal'].includes(curStatus(r))},
+  offer:     {label:'Offer',   test: r => curStatus(r) === 'offer'},
+};
+
+const passInd  = r => !filterIndustry || r.industry === filterIndustry;
+const passStat = r => filterStatus ? (curStatus(r) === filterStatus)
+                   : filterGroup  ? GROUPS[filterGroup].test(r)
+                   : true;
+
+const count  = id => RECORDS.filter(r => curStatus(r) === id).length;                    // 全局
+const total  = () => RECORDS.length;
+const countS = id => RECORDS.filter(r => curStatus(r) === id && passInd(r)).length;      // 受行业筛选影响
+const countI = nm => RECORDS.filter(r => r.industry === nm && passStat(r)).length;       // 受状态筛选影响
+
+/* =========================================================
+   4. 渲染
+   ========================================================= */
+function renderKPIs(){
+  const n = total();
+  const written      = count('test') + count('written');
+  const interviewing = ['ai','r1','r2','final','hr','verbal'].reduce((s,id)=>s+count(id),0);
+  const offers = count('offer');
+  const submittedAll = RECORDS.filter(r => curStatus(r) !== 'pending').length;
+
+  const cards = [
+    {key:'all',       label:'总岗位数',   num:n,            foot:`已投递 ${submittedAll} · 待投递 ${count('pending')}`},
+    {key:'written',   label:'笔试环节中', num:written,      foot:'含测评 / 笔试'},
+    {key:'interview', label:'面试环节中', num:interviewing, foot:'含AI面 / 一面 / 二面 / 终面 / HR面'},
+    {key:'offer',     label:'Offer',     num:offers,       foot:(offers && n) ? `${(offers/n*100).toFixed(1)}% 转化率` : '暂无', offer:true},
+  ];
+
+  // 脚注信息移到 title，省掉一行高度
+  document.getElementById('kpis').innerHTML = cards.map(c => {
+    const on = (c.key === 'all')
+      ? (!filterGroup && !filterStatus && !filterIndustry)   // 没筛选时，它就是"当前在看全部"
+      : (filterGroup === c.key);
+    return `
+    <div class="kpi${c.offer?' is-offer':''}${on?' on':''}" data-group="${c.key}"
+         title="${c.foot}　·　点击筛选下方岗位">
+      <div class="k-label">${c.label}</div>
+      <div class="k-num">${c.num}<span class="unit">个</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* 渲染后按"真实宽度"决定哪几段放得下「名称 + 数字」——
+   放不下就不显示名称，免得字溢出到相邻段上 */
+const SEG_PAD = 12;   // 段内左右各留一点，别贴着边
+
+function fitSegLabels(bar){
+  if (!bar) return;
+  [...bar.children].forEach(el => {
+    if (!el.classList || !el.classList.contains('seg')) return;
+    el.classList.remove('show-name','show-num');
+
+    const iname = el.querySelector('.iname');
+    const num   = el.querySelector('.n');
+    const segW  = el.getBoundingClientRect().width;   // 段实际宽度
+    // 文字是 nowrap，即使 opacity:0 也占位，能量到真实宽度
+    const wName = iname ? iname.getBoundingClientRect().width : 0;
+    const wNum  = num   ? num.getBoundingClientRect().width   : 0;
+
+    if (wName && segW >= wName + wNum + SEG_PAD + 5){      // 「名称 + 数字」都放得下
+      el.classList.add('show-name','show-num');
+    } else if (wName && segW >= wName + SEG_PAD){          // 只放得下名称
+      el.classList.add('show-name');
+    } else if (wNum && segW >= wNum + SEG_PAD){            // 只放得下数字
+      el.classList.add('show-num');
+    }
+  });
+}
+
+function renderPipeline(){
+  const pipeline = document.getElementById('pipeline');
+  pipeline.className = 'pipeline';
+
+  // 数量受「行业筛选」影响：选了行业，这里看的就是该行业的进度分布
+  const shown = STATUSES.filter(s => countS(s.id) > 0);
+
+  if (!shown.length){
+    pipeline.innerHTML = `<div class="bar-empty">还没有数据</div>`;
+    return;
+  }
+
+  pipeline.innerHTML = shown.map(s => {
+    const n = countS(s.id);
+    const grow = Math.pow(n, .72);               // 压缩极端差值，小段也看得见
+    const cls = [
+      'seg',
+      s.hollow ? 'is-hollow' : '',
+      filterStatus === s.id ? 'sel' : ''
+    ].filter(Boolean).join(' ');
+    return `<div class="${cls}" data-id="${s.id}" style="flex:${grow} 1 0px"
+                 title="${s.name}：${n} 个（点击筛选）">
+              <span class="iname" style="color:${s.ink}">${s.name}</span><span class="n" style="color:${s.ink}">${n}</span>
+            </div>`;
+  }).join('');
+
+  // 上色（空心状态用自身的浅灰底）
+  [...pipeline.children].forEach(el => {
+    el.style.background = byId[el.dataset.id].color;
+  });
+  fitSegLabels(pipeline);
+
+  pipeline.onclick = e => {
+    const seg = e.target.closest('.seg');
+    if (seg) setStatusFilter(seg.dataset.id);
+  };
+}
+
+/* 行业分布轴：数量受「状态筛选」影响，与进度条互为联动 */
+function renderIndustry(){
+  const bar = document.getElementById('industryBar');
+  bar.className = 'pipeline industry';
+
+  const shown = INDUSTRIES.map(nm => ({nm, n: countI(nm)})).filter(x => x.n > 0);
+
+  if (!shown.length){
+    bar.innerHTML = `<div class="bar-empty">还没有数据</div>`;
+    return;
+  }
+
+  bar.innerHTML = shown.map(x => {
+    const cls = ['seg', filterIndustry === x.nm ? 'sel' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}" data-ind="${x.nm}"
+                 style="flex:${Math.pow(x.n,.72)} 1 0px;background:${IND_COLOR[x.nm] || '#7C838C'}"
+                 title="${x.nm}：${x.n} 个（点击筛选）">
+              <span class="iname">${x.nm}</span><span class="n">${x.n}</span>
+            </div>`;
+  }).join('');
+
+  fitSegLabels(bar);
+
+  bar.onclick = e => {
+    const seg = e.target.closest('.seg');
+    if (seg) setIndustryFilter(seg.dataset.ind);
+  };
+}
+
+/* 量出每一列真正需要多宽，再按比例（fr）分配 —— 留白摊到每列，不会堆成一个大洞 */
+function fitColumns(){
+  const rowsEl = $('rows');
+  const rows = [...rowsEl.querySelectorAll('.row')];
+  if (!rows.length) return;
+
+  const N = rows[0].children.length;
+  const MIN = [72, 96, 54, 72, 50, 90];      // 各列下限，太窄会挤成一条
+  const MAX = [200, 280, 120, 140, 90, 320]; // 各列上限，免得长名字把别列挤没
+  const nat = new Array(N).fill(0);
+
+  rows.forEach(row => {
+    [...row.children].forEach((cell, i) => {
+      // 单元格是 nowrap + overflow:hidden，scrollWidth 就是文字真实宽度
+      if (i < N) nat[i] = Math.max(nat[i], cell.scrollWidth);
+    });
+  });
+
+  rowsEl.style.setProperty('--cols',
+    nat.map((w, i) => Math.min(Math.max(w, MIN[i] || 60), MAX[i] || 240) + 'fr').join(' '));
+}
+
+/* 列表排序权重：Offer 在最上，往下逐级退回"待投递"；
+   已拒绝 / 已放弃 是最不想天天看到的，沉到最底 */
+const LIST_ORDER = ['offer','verbal','hr','final','r2','r1','ai','written','test',
+                    'screening','submitted','pending','rejected','dropped'];
+const rankOf = id => { const i = LIST_ORDER.indexOf(id); return i < 0 ? 99 : i; };
+
+function renderRows(){
+  const rows = document.getElementById('rows');
+
+  // 先按上面的权重排；同一进度内再按"最新时间"排（新的在前）
+  const list = RECORDS.filter(r => passStat(r) && passInd(r))
+                      .slice()
+                      .sort((a,b) => (rankOf(curStatus(a)) - rankOf(curStatus(b)))
+                                     || lastDate(b).localeCompare(lastDate(a)));
+
+  const conds = [];
+  if (filterGroup)    conds.push(GROUPS[filterGroup].label);
+  if (filterStatus)   conds.push(`状态「${byId[filterStatus].name}」`);
+  if (filterIndustry) conds.push(`行业「${filterIndustry}」`);
+
+  // 没有筛选就把整条藏起来，不占高度
+  document.getElementById('filterBar').classList.toggle('hide', !conds.length);
+  document.getElementById('fhint').innerHTML = conds.length
+    ? `<span class="fhint">只看 ${conds.join(' + ')} · ${list.length} 个
+         <button class="clr" id="clrBtn">清除</button></span>`
+    : '';
+
+  // 批量模式：勾选只保留在当前可见列表里，免得删掉被筛选藏起来的行
+  if (batchMode){
+    const visible = new Set(list.map(r => r.id));
+    [...picked].forEach(id => { if (!visible.has(id)) picked.delete(id); });
+  } else {
+    picked.clear();
+  }
+
+  if (!RECORDS.length){
+    rows.innerHTML = `<div class="empty">还没有录入岗位 —— 点右上角「+ 新增岗位」开始</div>`;
+  } else if (!list.length){
+    rows.innerHTML = `<div class="empty">当前筛选条件下没有岗位，点上面的「清除」试试</div>`;
+  } else {
+    rows.innerHTML = `
+      <div class="row head">
+        <div>公司</div><div>岗位</div><div>行业</div><div>状态</div><div>最新时间</div><div>下一步</div>
+      </div>` + list.map(r => {
+        const s = byId[curStatus(r)];
+        const chipStyle = s.hollow ? '' : `background:${s.color};color:${s.ink};`;
+
+        // DDL 紧急度：行首纵轴取色 + 日期胶囊
+        const dn = daysTo(r.ddl);
+        const du = (dn === null) ? null : URG[urgency(dn)];
+        const ddlTip = !du ? '' :
+          du.label + '：' + (dn < 0 ? `已过 ${-dn} 天`
+                            : dn === 0 ? '就是今天'
+                            : `还有 ${dn} 天`);
+        const ddlChip = du
+          ? `<span class="ddl-chip" style="background:${du.bg};color:${du.fg}" title="${ddlTip}">${md(r.ddl)}</span>`
+          : '';
+
+        const isPicked = picked.has(r.id);
+        return `
+        <div class="row data${isPicked ? ' picked' : ''}" data-id="${r.id}" style="--ddl:${du ? du.stripe : 'transparent'}"
+             title="${batchMode ? '点击勾选 / 取消勾选' : '点击查看/编辑进度时间线'}">
+          <div class="co" title="${esc(r.company)}">${batchMode
+            ? `<input type="checkbox" class="pick" tabindex="-1"${isPicked ? ' checked' : ''} aria-label="选中这条">` : ''
+            }${esc(r.company)}${r.note ? ' <span class="note-dot" title="有备注">📝</span>' : ''}</div>
+          <div class="pos" title="${esc(r.position)}">${esc(r.position)}</div>
+          <div><span class="tag">${r.industry}</span></div>
+          <div><span class="chip clickable${s.hollow?' is-hollow':''}" data-chip="${r.id}" style="${chipStyle}"
+                     title="点击直接改状态（会在时间线上追加一条）">${s.name}</span></div>
+          <div class="date" title="起投 ${firstDate(r) || '—'} · 共 ${r.timeline.length} 条进度">${md(lastDate(r))}</div>
+          <div class="next" title="${esc(r.next)}">${ddlChip}${esc(r.next)}</div>
+        </div>`;
+      }).join('');
+  }
+
+  const clr = document.getElementById('clrBtn');
+  if (clr) clr.onclick = () => {
+    filterStatus = null; filterGroup = null; filterIndustry = null; renderAll();
+  };
+
+  renderBatchBar();
+
+  fitColumns();   // 内容变了，重新分配列宽
+
+  // 行点击 → 编辑弹窗；状态色块点击 → 快选菜单；批量模式下 → 勾选
+  rows.onclick = e => {
+    const row = e.target.closest('.row.data');
+    if (batchMode){
+      if (row) togglePick(Number(row.dataset.id));
+      return;
+    }
+    const chip = e.target.closest('[data-chip]');
+    if (chip){ e.stopPropagation(); openStatusMenu(chip, Number(chip.dataset.chip)); return; }
+    if (row) openModal(Number(row.dataset.id));
+  };
+}
+
+/* =========================================================
+   3.1 批量管理
+   ========================================================= */
+function setBatchMode(on){
+  batchMode = on;
+  if (!on) picked.clear();
+  const btn = $('batchBtn');
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '☑ 批量管理中' : '☑ 批量管理';
+  renderRows();          // 只重画列表，顶部总板和两条轴不用动
+}
+
+/* 当前列表里看得见的记录 id（勾选范围 = 可见范围） */
+const visibleIds = () => [...document.querySelectorAll('#rows .row.data')]
+  .map(el => Number(el.dataset.id));
+
+/* 只改动行的选中样子，不重画列表 —— 重画会让连点时的 DOM 引用失效 */
+function paintPick(id){
+  const row = document.querySelector(`#rows .row.data[data-id="${id}"]`);
+  if (!row) return;
+  const on = picked.has(id);
+  row.classList.toggle('picked', on);
+  const cb = row.querySelector('.pick');
+  if (cb) cb.checked = on;
+}
+
+function togglePick(id){
+  if (picked.has(id)) picked.delete(id); else picked.add(id);
+  paintPick(id);
+  renderBatchBar();
+}
+
+function renderBatchBar(){
+  const bar = $('batchBar');
+  bar.classList.toggle('hide', !batchMode);
+  if (!batchMode) return;
+
+  const ids = visibleIds();
+  const n   = picked.size;
+  const all = ids.length > 0 && ids.every(id => picked.has(id));
+  const scope = (filterGroup || filterStatus || filterIndustry) ? '（当前筛选范围内）' : '';
+  bar.innerHTML = `
+    <span class="cnt">已选 <b>${n}</b> / ${ids.length} 条${scope}</span>
+    <span class="sp"></span>
+    <button class="btn" id="pickAllBtn"${ids.length ? '' : ' disabled'}>${all ? '取消全选' : '全选'}</button>
+    <button class="btn danger" id="pickDelBtn"${n ? '' : ' disabled'}>删除选中${n ? `（${n}）` : ''}</button>
+    <button class="btn" id="batchExitBtn">退出批量</button>`;
+
+  $('pickAllBtn').onclick = () => {
+    ids.forEach(id => { if (all) picked.delete(id); else picked.add(id); });
+    ids.forEach(paintPick);
+    renderBatchBar();
+  };
+  $('pickDelBtn').onclick  = deletePicked;
+  $('batchExitBtn').onclick = () => setBatchMode(false);
+}
+
+function deletePicked(){
+  if (!picked.size) return;
+  const victims = RECORDS.filter(r => picked.has(r.id));
+  const preview = victims.slice(0, 6).map(r => `· ${r.company} · ${r.position}`).join('\n');
+  const more    = victims.length > 6 ? `\n……等共 ${victims.length} 条` : '';
+  if (!confirm(`确定删除以下 ${victims.length} 条记录吗？\n\n${preview}${more}\n\n删除后无法撤销。`)) return;
+
+  RECORDS = RECORDS.filter(r => !picked.has(r.id));
+  picked.clear();
+  saveRecords();
+  refresh();
+  if (!RECORDS.length) setBatchMode(false);   // 删空了就自动退出，别留个空工具条
+}
+
+function setStatusFilter(id){
+  filterStatus = (filterStatus === id) ? null : id;   // 再点一次取消
+  filterGroup  = null;                                 // 和总板分组互斥
+  renderAll();
+}
+function setIndustryFilter(nm){
+  filterIndustry = (filterIndustry === nm) ? null : nm;
+  renderAll();
+}
+/* 点总板上的数字 */
+function clickKpi(key){
+  if (key === 'all'){
+    // 「总岗位数」= 看全部，清掉所有筛选
+    filterStatus = null; filterGroup = null; filterIndustry = null;
+  } else {
+    filterStatus = null;
+    filterGroup  = (filterGroup === key) ? null : key;   // 再点一次取消
+  }
+  renderAll();
+}
+
+/* 重新量两条轴上的标签（渲染时量一次，动画走完再量一次） */
+let fitTimer = null;
+function refitBars(){
+  fitSegLabels($('pipeline'));
+  fitSegLabels($('industryBar'));
+  fitColumns();
+}
+
+/* =========================================================
+   JD 留存：看到想投的先存下来，真投了自动写进那条记录的备注
+   ========================================================= */
+/* 名字里不带「公司/集团/证券」后缀的常见雇主，靠这张表兜底 */
+const JD_KNOWN = ['腾讯','阿里巴巴','字节跳动','百度','美团','京东','小米','华为','拼多多',
+                  '快手','小红书','网易','滴滴','蚂蚁集团','蚂蚁金服','哔哩哔哩','bilibili',
+                  '中金公司','中信证券','中信建投','华泰证券','广发证券','招商证券',
+                  '国泰君安','海通证券','申万宏源','易方达基金','华夏基金','鹏华基金',
+                  '南方基金','嘉实基金','广发基金','招商银行','中国平安'];
+
+const JD_COMP_PAT = /[一-龥A-Za-z0-9（）()·]{2,20}(?:有限公司|股份有限公司|集团|公司|证券|基金|银行|科技|控股|事务所|咨询|资本)/;
+const JD_POS_PAT  = /[一-龥A-Za-z0-9\/·\-]{2,24}(?:实习生|分析师|研究员|管培生|管理培训生|助理|经理|专员|工程师|顾问|主管|总监)/;
+
+/* 从粘贴的 JD 里猜公司 / 岗位 / 链接。猜不准用户可以在弹窗里改。 */
+function parseJD(text){
+  const t = (text || '').trim();
+  const url = (t.match(/https?:\/\/[^\s"'）)】\]]+/) || [''])[0];
+  // 去掉「看到 / 贵司 / 该公司」这类引导词，避免被当成公司名的一部分
+  const body = t.replace(/(?:看到|关注到|了解到|得知|发现|贵司|贵公司|该公司)\s*/g, '');
+
+  let company = '', position = '';
+  const cm = body.match(/(?:公司名称|公司)\s*[：:]\s*([^\n，,。；;]{2,24})/);
+  if (cm) company = cm[1].trim();
+  const pm = body.match(/(?:岗位名称|职位名称|岗位|职位)\s*[：:]\s*([^\n，,。；;]{2,24})/);
+  if (pm) position = pm[1].trim();
+
+  if (!company){ const m = body.match(JD_COMP_PAT); if (m) company = m[0]; }
+  if (!company){
+    // 没后缀的常见雇主：取文本里出现的最长那个，避免「阿里」抢在「阿里巴巴」前面
+    const hit = JD_KNOWN.filter(k => body.includes(k)).sort((a, b) => b.length - a.length)[0];
+    if (hit) company = hit;
+  }
+  if (!position){ const m = body.match(JD_POS_PAT); if (m) position = m[0]; }
+
+  // 「鹏华基金-机构业务经理助理」这种公司+岗位连写，把公司部分剥掉
+  if (company && position.includes(company)){
+    const rest = position.slice(position.indexOf(company) + company.length)
+                         .replace(/^[\s\-—–－|｜/／]+/, '');
+    if (rest) position = rest;
+  }else if (/[-—–－|｜]/.test(position)){
+    const parts = position.split(/[-—–－|｜]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) position = parts[parts.length - 1];
+  }
+  return { url, company, position };
+}
+
+function jdNorm(s){
+  return (s || '').replace(/\s/g, '')
+    .replace(/(有限公司|股份有限公司|集团|股份|公司)$/, '').toLowerCase();
+}
+/* 岗位名比较用：去掉「部/组/中心/团队」这类组织词，
+   这样「投行部分析师」和「投行分析师」能对上 */
+function posNorm(s){
+  return jdNorm(s).replace(/(事业部|业务部|项目部|研发部|部门|部|组|中心|团队|室|方向)/g, '');
+}
+
+/* 按「公司 + 岗位」在 JD 池里找对应那条；公司对上、岗位任一方为空也算 */
+function matchJD(company, position){
+  const c = jdNorm(company), p = posNorm(position);
+  if (!c) return null;
+  return JDS.find(j => {
+    const jc = jdNorm(j.company), jp = posNorm(j.position);
+    if (!jc) return false;
+    if (jc !== c && !jc.includes(c) && !c.includes(jc)) return false;
+    if (!p || !jp) return true;
+    return jp === p || jp.includes(p) || p.includes(jp);
+  }) || null;
+}
+
+function jdNote(j){
+  const url  = j.url ? `\n链接：${j.url}` : '';
+  const body = (j.text || '').replace(/\s+/g, ' ').trim();
+  const cut  = body.slice(0, 300);
+  return `【JD】${j.company} · ${j.position}${url}\n${cut}${body.length > 300 ? '…（完整 JD 见「JD 留存」）' : ''}`;
+}
+
+/* 投递记录落地时调用：匹配上就把 JD 写进备注，并把 JD 标成已投递 */
+function attachJD(rec){
+  if (!rec || !JDS.length) return false;
+  if ((rec.note || '').includes('【JD】')) return false;        // 已经贴过，别重复
+  const jd = matchJD(rec.company, rec.position);
+  if (!jd) return false;
+  rec.note = (rec.note ? rec.note + '\n\n' : '') + jdNote(jd);
+  jd.linked_id  = rec.id ?? null;
+  jd.status     = 'applied';
+  jd.applied_at = todayStr();
+  return true;
+}
+
+function jdNextId(){
+  const ids = JDS.map(j => Number(j.id) || 0).filter(n => n >= 800000);
+  return (ids.length ? Math.max(...ids) : 800000) + 1;
+}
+
+function shortUrl(u){
+  try{ const x = new URL(u); return x.hostname + (x.pathname.length > 1 ? '/…' : ''); }
+  catch(e){ return u.slice(0, 40); }
+}
+
+function renderJDs(){
+  const panel = $('jdPanel');
+  if (!panel) return;
+  const badge = $('jdBadge');
+  if (badge) badge.textContent = JDS.length ? String(JDS.length) : '';
+  panel.hidden = !JDS.length;
+  if (!JDS.length) return;
+
+  const sorted = JDS.slice().sort((a,b) => (b.added || '').localeCompare(a.added || ''));
+  $('jdList').innerHTML = sorted.map(j => {
+    const applied = j.status === 'applied' || j.linked_id;
+    const txt = (j.text || '').trim();
+    const coll = jdCollapsed.has(String(j.id));
+    const long = txt.length > 180;
+    return `<div class="jd-item">
+      <div class="jd-item-top">
+        <span class="jd-item-title">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</span>
+        <span class="jd-tag ${applied ? 'applied' : 'open'}">${applied ? '已投递' : '未投递'}</span>
+        <span class="jd-item-acts">
+          ${long ? `<button class="btn" data-jdtog="${j.id}">${coll ? '展开全文' : '收起'}</button>` : ''}
+          ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener" style="text-decoration:none">原帖</a>` : ''}
+          <button class="btn danger" data-jddel="${j.id}">删除</button>
+        </span>
+      </div>
+      <div class="jd-item-meta">${esc(j.added || '')}${j.url ? ' · ' + esc(shortUrl(j.url)) : ''}</div>
+      ${txt ? `<div class="jd-item-text${coll ? ' collapsed' : ''}">${esc(txt)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function growJDText(){
+  const t = $('jdText');
+  if (!t) return;
+  t.style.height = 'auto';
+  t.style.height = Math.max(240, Math.min(t.scrollHeight + 4, innerHeight * 0.56)) + 'px';
+}
+
+function openJD(){
+  ['jdText','jdCompany','jdPosition','jdUrl'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+  $('jdErr').textContent = '';
+  $('jdMask').classList.add('open');
+  setTimeout(() => { const t = $('jdText'); if (t){ t.style.height = ''; t.focus(); } }, 30);
+}
+function closeJD(){ $('jdMask').classList.remove('open'); }
+
+function saveJD(){
+  const text = $('jdText').value.trim();
+  const url  = $('jdUrl').value.trim();
+  let company  = $('jdCompany').value.trim();
+  let position = $('jdPosition').value.trim();
+
+  if (!text){ $('jdErr').textContent = 'JD 原文不能为空'; return; }
+  // 认不出来也照存，卡片上会标「未识别」，不拦着你
+  if (!company || !position){
+    const p = parseJD(text);
+    company  = company  || p.company;
+    position = position || p.position;
+    if (!url && p.url) $('jdUrl').value = p.url;
+  }
+
+  const dup = company && JDS.find(j => jdNorm(j.company) === jdNorm(company) && jdNorm(j.position) === jdNorm(position));
+  if (dup && !confirm(`已经存过「${dup.company} · ${dup.position}」的 JD 了，还要再存一条？`)) return;
+
+  JDS.push({
+    id: jdNextId(), _jd: true,
+    company, position,
+    url: $('jdUrl').value.trim(),
+    text, added: todayStr(), status: 'open',
+  });
+  saveRecords();
+  closeJD();
+  refresh();
+}
+
+function deleteJD(id){
+  const i = JDS.findIndex(j => String(j.id) === String(id));
+  if (i < 0) return;
+  if (!confirm(`删除「${JDS[i].company} · ${JDS[i].position}」这条 JD？`)) return;
+  JDS.splice(i, 1);
+  saveRecords();
+  refresh();
+}
+
+/* 邮箱同步扫出来、还没确认的记录 */
+function renderPending(){
+  const bar = $('pendingBar');
+  if (!bar) return;
+  const list = PENDING.filter(r => !r._ignored);
+  if (!list.length){ bar.hidden = true; bar.innerHTML = ''; return; }
+  bar.hidden = false;
+
+  const items = list.map(r => {
+    const src  = r._source || {};
+    const isUp = r._kind === 'update';
+    const kind = isUp ? '进度更新' : '新投递';
+    const st   = isUp ? (byId[r._status] ? byId[r._status].name : (r._status || '')) : '';
+    const title = isUp
+      ? `${esc(r.company || '(未识别公司)')}　→　${esc(st)}`
+      : `${esc(r.company || '(未识别公司)')}　${esc(r.position || '(未填岗位)')}`;
+    const meta = isUp
+      ? esc(src.date || '')
+      : `${esc((r.timeline && r.timeline[0] && r.timeline[0].d) || '')}　行业：${esc(r.industry || '其他')}`;
+    const why = isUp
+      ? esc((r.note || '').slice(0, 140))
+      : `依据：${esc((src.reasons || []).join('、'))}${src.company_basis ? '；公司来自' + esc(src.company_basis) : ''}`;
+    return `<div class="pending-item">
+      <div class="pi-main">
+        <div class="pi-title"><span class="pi-kind">${kind}</span>${title}</div>
+        <div class="pi-meta">${meta}</div>
+        <div class="pi-why">${why}</div>
+      </div>
+      <div class="pi-actions">
+        <button class="btn primary" data-pend="ok" data-id="${r.id}">确认写入</button>
+        <button class="btn" data-pend="no" data-id="${r.id}">忽略</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  bar.innerHTML = `<div class="pending-head">
+      <span class="pending-title">📬 邮箱同步 · 待确认 <b>${list.length}</b> 条</span>
+      <span class="pending-tip">确认后才会写进看板；忽略的以后不再提示</span>
+    </div>
+    <div class="pending-list">${items}</div>`;
+}
+
+/* 确认 / 忽略一条待确认记录 */
+async function resolvePending(id, ok){
+  const i = PENDING.findIndex(r => String(r.id) === String(id));
+  if (i < 0) return;
+  const p = PENDING[i];
+
+  if (ok){
+    if (p._kind === 'update'){
+      const target = RECORDS.find(r => String(r.id) === String(p._target_id));
+      if (!target){ fsErr('确认写入', new Error('找不到要更新的那条记录，可能已被删除')); return; }
+      target.timeline = target.timeline || [];
+      target.timeline.push({
+        s: p._status,
+        d: (p._source && p._source.date) || todayStr(),
+        n: (p.note || '').slice(0, 200),
+      });
+      target.timeline.sort((a,b) => a.d.localeCompare(b.d));
+      if (p.next && p.next !== '—') target.next = p.next;
+      if (p.ddl) target.ddl = p.ddl;
+      PENDING.splice(i, 1);
+    }else{
+      const rec = { ...p };
+      ['_pending','_ignored','_kind','_source','_target_id','_status'].forEach(k => delete rec[k]);
+      rec.id = nextId();
+      rec.timeline = [{ s:'submitted', d:(p.timeline && p.timeline[0] && p.timeline[0].d) || todayStr(), n:'' }];
+      attachJD(rec);        // 之前存过对应 JD 的话，自动写进备注
+      RECORDS.push(normalize(rec, RECORDS.length));
+      PENDING.splice(i, 1);
+    }
+  }else{
+    p._ignored = true;      // 留在文件里，脚本下轮读到就记下来、不再提示
+  }
+
+  saveRecords();
+  if (fileState.mode === 'file' && fileState.handle){
+    try{ await writeDataFile(); setSaveState('ok'); }
+    catch(e){ fsErr('写入文件', e); }
+  }
+  refresh();
+}
+
+function renderAll(){
+  renderKPIs();       // 顶部总板（数字本身始终是全局的，只切换高亮）
+  renderPipeline();   // 受行业筛选影响
+  renderIndustry();   // 受状态筛选影响
+  renderRows();       // 取交集
+
+  // 段宽是带动画过渡的，等它走完再量一次宽度，标签才不会判断错
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(refitBars, 560);
+}
+/* 数据变化后统一刷新 */
+function refresh(){
+  renderPending();    // 邮箱同步待确认区（没有就自动隐藏）
+  renderJDs();        // JD 留存（没有就自动隐藏）
+  renderAll();
+  updateNotice();
+  updateDdlBadge();
+  if ($('drawer').classList.contains('open')) renderDrawer();   // 面板开着就同步刷新
+}
+
+/* =========================================================
+   4.5 待办 DDL：行首纵轴 + 侧拉面板
+   ========================================================= */
+function ddlList(){
+  const live = [], past = [];
+  RECORDS.forEach(r => {
+    const n = daysTo(r.ddl);
+    if (n === null) return;
+    (n < 0 ? past : live).push({ r, n });
+  });
+  live.sort((a,b) => a.n - b.n);          // 未过期：由近到远
+  past.sort((a,b) => b.n - a.n);          // 已过期：刚过期没多久的在前
+  return live.concat(past);               // 已过期的整体沉到最底下
+}
+
+function updateDdlBadge(){
+  const urgent = ddlList().filter(x => x.n <= 1).length;   // 已过期 / 今天 / 明天
+  const b = $('ddlBadge');
+  b.textContent = urgent;
+  b.classList.toggle('on', urgent > 0);
+}
+
+function renderDrawer(){
+  const box = $('drawerBody');
+  const list = ddlList();
+
+  if (!list.length){
+    box.innerHTML = `<div class="ddl-empty">
+      还没有设置 DDL。<br>
+      点开任意岗位，在「下一步截止日期」里<br>填一个日期，它就会出现在这里。
+    </div>`;
+    return;
+  }
+
+  // 同一天的并成一组
+  const groups = [];
+  list.forEach(x => {
+    const g = groups[groups.length - 1];
+    if (g && g.n === x.n) g.items.push(x.r);
+    else groups.push({ n: x.n, items: [x.r] });
+  });
+
+  let pastDividerDone = false;
+  box.innerHTML = groups.map(g => {
+    const u = URG[urgency(g.n)];
+    const label = g.n < 0 ? `已过期 ${-g.n} 天`
+                : g.n === 0 ? '今天'
+                : g.n === 1 ? '明天'
+                : `${g.n} 天后`;
+    // 过期的那一段已经沉底，加一条分隔线说明"下面这些不用再等了"
+    const divider = (g.n < 0 && !pastDividerDone)
+      ? (pastDividerDone = true, `<div class="ddl-sep"><span>已过期</span></div>`)
+      : '';
+    return divider + `<div class="ddl-group">
+      <div class="ddl-group-head">
+        <span class="g-t" style="color:${u.fg}">${label}</span>
+        <span class="g-d">${md(g.items[0].ddl)}</span>
+        <span class="g-badge" style="background:${u.bg};color:${u.fg}">${g.items.length} 个</span>
+      </div>
+      ${g.items.map(r => {
+        const s   = byId[curStatus(r)];
+        const sub = [s.name, (r.next && r.next !== '—') ? r.next : ''].filter(Boolean).join(' · ');
+        return `<div class="ddl-item" data-id="${r.id}" title="点击打开这个岗位">
+          <div class="bar" style="background:${u.stripe}"></div>
+          <div class="txt">
+            <div class="t1">${esc(r.company)} · ${esc(r.position)}</div>
+            <div class="t2">${esc(sub)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+function openDrawer(){
+  renderDrawer();
+  $('drawer').classList.add('open');
+  $('drawerMask').classList.add('open');
+}
+function closeDrawer(){
+  $('drawer').classList.remove('open');
+  $('drawerMask').classList.remove('open');
+}
+
+/* =========================================================
+   5. 增删改
+   ========================================================= */
+let editingId = null;
+
+const $ = id => document.getElementById(id);
+
+/* HTML 转义：公司名里出现 & < > " 不会破版 */
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function nextId(){
+  return RECORDS.length ? Math.max(...RECORDS.map(r => Number(r.id) || 0)) + 1 : 1;
+}
+
+function updateNotice(){
+  $('notice').style.display = isSample ? '' : 'none';
+}
+
+function fillSelects(){
+  $('fIndustry').innerHTML = INDUSTRIES.map(i => `<option>${i}</option>`).join('');
+}
+
+/* ---------- 弹窗里的进度时间线 ---------- */
+let draftTimeline = [];
+
+/* 备注框按内容长高：点开就整段看全，超过视口一半才改成内部滚动 */
+function autoGrowNote(){
+  const t = $('fNote');
+  if (!t) return;
+  t.style.height = 'auto';                       // 先归零，scrollHeight 才是真实内容高度
+  const cap = Math.round(innerHeight * 0.8);     // 长到视口八成高才停，剩下的交给弹窗整体滚动
+  t.style.height = Math.min(t.scrollHeight, cap) + 'px';
+  t.style.overflowY = (t.scrollHeight > cap) ? 'auto' : 'hidden';
+}
+
+const statusOpts = sel =>
+  STATUSES.map(s => `<option value="${s.id}"${s.id === sel ? ' selected' : ''}>${s.name}</option>`).join('');
+
+/* 把 DOM 上正在编辑的值收回数组，避免 add/remove 时丢掉未失焦的输入 */
+function syncTimeline(){
+  [...$('timelineList').children].forEach((row, i) => {
+    if (!draftTimeline[i]) return;
+    draftTimeline[i].s = row.querySelector('.tl-s').value;
+    draftTimeline[i].d = row.querySelector('.tl-d').value;
+    draftTimeline[i].n = row.querySelector('.tl-n').value;
+  });
+}
+
+function renderTimeline(){
+  const box = $('timelineList');
+  box.innerHTML = draftTimeline.map((e, i) => {
+    const isLast = i === draftTimeline.length - 1;
+    return `<div class="tl-row" data-i="${i}">
+      <select class="tl-s">${statusOpts(e.s)}</select>
+      <input class="tl-d" type="date" value="${(e.d && e.d !== '—') ? e.d : ''}">
+      <input class="tl-n" type="text" value="${esc(e.n)}" placeholder="备注（可选）">
+      <button type="button" class="tl-x" ${draftTimeline.length <= 1 ? 'disabled' : ''}
+              title="${isLast ? '删除这条（= 撤销最后一步）' : '删除这条'}">×</button>
+    </div>`;
+  }).join('');
+}
+
+function addTimelineRow(){
+  syncTimeline();
+  const last = draftTimeline[draftTimeline.length - 1];
+  // 默认推进到下一个阶段，多数情况下不用改
+  const i = last ? STATUSES.findIndex(s => s.id === last.s) : -1;
+  const nxt = STATUSES[Math.min(i + 1, STATUSES.length - 1)] || STATUSES[0];
+  draftTimeline.push({ s: nxt.id, d: todayStr(), n: '' });
+  renderTimeline();
+  const rows = $('timelineList').children;
+  if (rows.length) rows[rows.length - 1].querySelector('.tl-n').focus();
+}
+
+function removeTimelineRow(i){
+  syncTimeline();
+  if (draftTimeline.length <= 1) return;
+  draftTimeline.splice(i, 1);
+  renderTimeline();
+}
+
+function openModal(id){
+  editingId = (id == null) ? null : id;
+  const r = (id == null) ? null : RECORDS.find(x => x.id === id);
+
+  $('modalTitle').textContent = r ? '编辑岗位' : '新增岗位';
+  $('fCompany').value  = r ? r.company  : '';
+  $('fPosition').value = r ? r.position : '';
+  $('fIndustry').value = r ? r.industry : '银行';
+  $('fNext').value     = (r && r.next && r.next !== '—') ? r.next : '';
+  $('fNote').value     = r ? (r.note || '') : '';
+  $('fDdl').value      = (r && r.ddl) ? r.ddl : '';
+
+  // 编辑时深拷贝整条时间线；新增时给一条初始记录
+  draftTimeline = r
+    ? r.timeline.map(e => ({...e}))
+    : [{ s: 'pending', d: todayStr(), n: '' }];
+  renderTimeline();
+
+  $('delBtn').style.display = r ? '' : 'none';
+  $('modalErr').textContent = '';
+
+  $('modalMask').classList.add('open');
+  // 弹窗显示出来之后才能量到真实高度，所以放进 setTimeout
+  setTimeout(() => { autoGrowNote(); $('fCompany').focus(); }, 40);
+}
+
+function closeModal(){
+  $('modalMask').classList.remove('open');
+  editingId = null;
+}
+
+function saveModal(){
+  const company  = $('fCompany').value.trim();
+  const position = $('fPosition').value.trim();
+  if (!company || !position){
+    $('modalErr').textContent = '公司名和岗位名不能为空';
+    (!company ? $('fCompany') : $('fPosition')).focus();
+    return;
+  }
+
+  syncTimeline();
+  const timeline = draftTimeline
+    .map(e => ({ s: byId[e.s] ? e.s : 'pending', d: e.d || todayStr(), n: (e.n || '').trim() }))
+    .sort((a, b) => a.d.localeCompare(b.d));   // 保存时按日期正序，最后一条即当前进度
+
+  if (!timeline.length){
+    $('modalErr').textContent = '至少要保留一条进度';
+    return;
+  }
+
+  const data = {
+    company, position,
+    industry: $('fIndustry').value,
+    next:     $('fNext').value.trim() || '—',
+    note:     $('fNote').value.trim(),
+    ddl:      $('fDdl').value || '',
+    timeline,
+  };
+
+  if (editingId == null){
+    RECORDS.push({ id: nextId(), ...data });      // 新增
+  } else {
+    Object.assign(RECORDS.find(x => x.id === editingId), data);   // 编辑
+  }
+
+  isSample = false;          // 用户动过数据了，示例提示条收起来
+  saveRecords();
+  refresh();
+  closeModal();
+}
+
+function deleteRecord(){
+  if (editingId == null) return;
+  const r = RECORDS.find(x => x.id === editingId);
+  if (!r) return;
+  if (!confirm(`确定删除「${r.company} · ${r.position}」吗？\n删除后无法撤销。`)) return;
+
+  RECORDS = RECORDS.filter(x => x.id !== editingId);
+  saveRecords();
+  refresh();
+  closeModal();
+}
+
+/* ---------- 状态快选菜单 ---------- */
+let menuEl = null;
+function closeStatusMenu(){ if (menuEl){ menuEl.remove(); menuEl = null; } }
+
+function openStatusMenu(chipEl, id){
+  closeStatusMenu();
+  const r = RECORDS.find(x => x.id === id);
+  if (!r) return;
+
+  const m = document.createElement('div');
+  m.className = 'status-menu';
+  const cur = curStatus(r);
+  m.innerHTML = `<div class="sm-head">选一个 = 追加一条今天的进度</div>`
+    + STATUSES.map(s => {
+        const bg   = s.hollow ? '#F5F4F2' : s.color;
+        const ring = s.hollow ? 'box-shadow:inset 0 0 0 1.5px #CFC9C0;' : '';
+        return `<button data-id="${s.id}" class="${s.id === cur ? 'on' : ''}">
+                  <i style="background:${bg};${ring}"></i>${s.name}
+                </button>`;
+      }).join('');
+  document.body.appendChild(m);
+  menuEl = m;
+
+  // 贴着色块弹，并保证不出界
+  const b = chipEl.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(b.left - 8, innerWidth  - m.offsetWidth  - 8)) + 'px';
+  m.style.top  = Math.min(b.bottom + 6, innerHeight - m.offsetHeight - 8) + 'px';
+
+  m.onclick = e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.id === cur){ closeStatusMenu(); return; }   // 选的就是当前状态，不重复追加
+    r.timeline.push({ s: btn.dataset.id, d: todayStr(), n: '' });  // 追加一条进度
+    isSample = false;
+    saveRecords();
+    refresh();
+    closeStatusMenu();
+  };
+}
+
+document.addEventListener('click', e => {
+  if (menuEl && !menuEl.contains(e.target) && !e.target.closest('[data-chip]')) closeStatusMenu();
+  const pb = e.target.closest('[data-pend]');          // 邮箱同步：确认 / 忽略
+  if (pb) resolvePending(pb.dataset.id, pb.dataset.pend === 'ok');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){ closeStatusMenu(); closeModal(); closeDrawer(); }
+});
+
+/* 备份/导入已改由数据文件承担：
+   备份 = 拷贝「我的投递记录.json」；导入 = 数据条上的「打开其他文件」 */
+
+/* =========================================================
+   5.5 数据文件（File System Access API）
+   目标：让数据变成一个躺在文件夹里的真实文件，清浏览器数据也不会丢
+   ========================================================= */
+const FS_DB = 'qiuzhao-fs', FS_STORE = 'handles', FS_KEY = 'dataFile';
+
+const fileState = {
+  handle: null,        // 文件句柄
+  name: '',            // 文件名（用于显示）
+  mode: 'local',       // 'local' 只存浏览器 | 'file' 已连文件 | 'need-permission' 需要重新授权
+  lastErr: '',
+  saveKind: '',        // '' | 'saving' | 'ok' | 'err'
+  saveTime: '',
+  hadFile: false,      // 以前用过数据文件（用于判断"改动只在浏览器里"是否是问题）
+  pending: false,      // 有改动还没写进文件（只在浏览器里）—— 重连时不能默默覆盖
+};
+
+const fsSupported = () => typeof window.showSaveFilePicker === 'function';
+const fsErr = (what, err) => { fileState.lastErr = err.name + ': ' + err.message; alert(`${what}失败\n\n${err.name}: ${err.message}`); };
+
+/* ---- 极简 IndexedDB：只用来"记住"文件句柄，好让下次打开还能接上 ---- */
+function idb(){
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open(FS_DB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(FS_STORE);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror   = () => rej(rq.error);
+  });
+}
+async function idbOp(mode, fn){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(FS_STORE, mode);
+    let rq;
+    try{ rq = fn(tx.objectStore(FS_STORE)); }catch(e){ rej(e); return; }
+    tx.oncomplete = () => res(rq ? rq.result : undefined);
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+const idbSet = (k,v) => idbOp('readwrite', st => st.put(v, k));
+const idbGet = (k)   => idbOp('readonly',  st => st.get(k));
+
+/* ---- 状态条 ---- */
+function setSaveState(kind, detail){
+  fileState.saveKind   = kind;
+  fileState.saveDetail = detail || '';
+  if (kind !== 'saving'){
+    fileState.saveTime = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+  }
+  paintSaveState();
+}
+
+function paintSaveState(){
+  const el = $('dbSave');
+  if (!el) return;
+  const k = fileState.saveKind;
+  if (k === 'saving')      el.innerHTML = `<span style="color:#8A6D2B">保存中…</span>`;
+  else if (k === 'ok')     el.innerHTML = `<span style="color:#1F8A5B">已保存 ${fileState.saveTime}</span>`;
+  else if (k === 'err')    el.innerHTML = `<span style="color:#B03A3A" title="${esc(fileState.saveDetail)}">⚠ 保存失败</span>`;
+  else                     el.textContent = '—';
+}
+
+function renderDataBar(){
+  const bar = $('databar');
+  if (!bar) return;
+
+  if (!fsSupported()){
+    bar.className = 'databar info';
+    bar.innerHTML = `<span>ℹ️</span><span class="db-tx">
+      这个浏览器不支持「保存到文件」，数据只存在浏览器里。
+      换成 <b>Chrome 或 Edge</b> 打开，就能把数据存成文件夹里的文件。</span>`;
+    return;
+  }
+
+  if (fileState.mode === 'file'){
+    bar.className = 'databar ok';
+    bar.innerHTML = `
+      <span>✅</span>
+      <span class="db-tx">数据保存在 <b>${esc(fileState.name)}</b></span>
+      <span class="db-save" id="dbSave"></span>
+      <button class="db-btn ghost" data-act="pick">打开其他文件</button>`;
+  } else if (fileState.mode === 'need-permission'){
+    // 这是正常的浏览器安全流程，不是出错 —— 用中性色，别让用户对警告麻木
+    bar.className = 'databar link';
+    bar.innerHTML = `
+      <span>🔗</span>
+      <span class="db-tx">继续使用上次的数据文件 <b>${esc(fileState.name)}</b>${
+        fileState.pending
+          ? `<span class="db-pend">　⚠ 有改动还只在浏览器里，连上才会写进文件</span>`
+          : `<span style="opacity:.72">　数据一直在文件里，不会丢</span>`
+      }</span>
+      <button class="db-btn" data-act="resume">继续使用</button>
+      <button class="db-btn ghost" data-act="pick">打开其他文件</button>`;
+  } else {
+    bar.className = 'databar warn';
+    bar.innerHTML = `
+      <span>⚠️</span>
+      <span class="db-tx">数据现在存在<b>浏览器里</b>，清理浏览器数据会丢失</span>
+      <button class="db-btn" data-act="new">连接到数据文件</button>
+      <button class="db-btn ghost" data-act="pick">打开已有文件</button>`;
+  }
+  paintSaveState();
+}
+
+/* ---- 读写文件 ---- */
+async function writeDataFile(){
+  const w = await fileState.handle.createWritable();
+  // 待确认 / 已忽略 / JD 留存也要原样写回，脚本靠它们去重和匹配
+  await w.write(JSON.stringify(RECORDS.concat(PENDING, JDS), null, 2));
+  await w.close();
+  lastFileTouch = Date.now();      // 自己刚写的，别让轮询当成外部改动
+}
+
+/* ---- 外部改动轮询 ----
+   邮箱同步脚本会直接在磁盘上改这份 JSON。这里每 8 秒看一眼文件的修改时间，
+   变了就读进来重画。脚本是唯一的外部写入者，所以「文件为准」是安全的。
+   脚本写文件时要原地覆盖（不能用原子替换），否则这个文件句柄会指向旧文件。 */
+let lastFileTouch = 0;
+
+async function pollDataFile(){
+  if (fileState.mode !== 'file' || !fileState.handle) return;
+  if (fileState.saveKind === 'saving') return;          // 正在保存，别打架
+  try{
+    const f = await fileState.handle.getFile();
+    if (f.lastModified <= lastFileTouch) return;
+    const txt = await f.text();
+    if (!txt.trim()) return;
+    let arr;
+    try{ arr = JSON.parse(txt); }catch(e){ return; }     // 写到一半，下一轮再读
+    if (!Array.isArray(arr)) return;
+
+    const [mainArr, pendArr, jdArr] = splitPending(arr);
+    const incoming = mainArr.map(normalize);
+    lastFileTouch = f.lastModified;
+    const sideChanged = JSON.stringify(pendArr) !== JSON.stringify(PENDING)
+                     || JSON.stringify(jdArr)   !== JSON.stringify(JDS);
+    if (JSON.stringify(incoming) === JSON.stringify(RECORDS) && !sideChanged) return;
+
+    PENDING = pendArr;
+    JDS = jdArr;
+    RECORDS = incoming;
+    isSample = false;
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(RECORDS)); }catch(e){}
+    refresh();
+
+    setSaveState('ok');
+    const el = $('dbSave');
+    if (el){
+      el.innerHTML = `<span style="color:#1F8A5B">↻ ${fileState.saveTime} 已从文件同步</span>`;
+    }
+  }catch(e){ /* 读不到就等下一轮 */ }
+}
+
+setInterval(pollDataFile, 8000);
+
+async function attachFile(handle, writeCurrent){
+  fileState.handle  = handle;
+  fileState.name    = handle.name;
+  fileState.mode    = 'file';
+  fileState.hadFile = true;
+
+  try{ await idbSet(FS_KEY, handle); }
+  catch(e){ console.warn('没能记住文件句柄，下次打开需要重新选一次：', e); }
+
+  if (writeCurrent){
+    // 新建文件：把当前数据写进去（相当于一次迁移）
+    fileState.pending = false;
+    try{
+      await writeDataFile();
+      setSaveState('ok');
+    }catch(err){ fsErr('写入文件', err); }
+  }else{
+    // 打开已有文件，默认以文件内容为准。
+    // 但如果浏览器里攒了一份"还没写进文件"的改动，绝不能默默覆盖掉 —— 先问用户。
+    if (fileState.pending && RECORDS.length){
+      const keepBrowser = confirm(
+        '浏览器里有一份「还没写进数据文件」的改动。\n\n' +
+        '【确定】保留浏览器里的这份，写进文件\n' +
+        '【取消】用文件里的那份（浏览器里的改动会丢掉）'
+      );
+      if (keepBrowser){
+        fileState.pending = false;
+        try{
+          await writeDataFile();
+          setSaveState('ok');
+        }catch(err){ fsErr('写入文件', err); }
+        renderDataBar();
+        return;
+      }
+    }
+
+    try{
+      const f   = await handle.getFile();
+      lastFileTouch = f.lastModified;    // 刚读过的版本，轮询不必重读
+      const txt = await f.text();
+      if (txt.trim()){
+        const arr = JSON.parse(txt);
+        if (!Array.isArray(arr)) throw new Error('文件内容不是一个数组，可能选错了文件');
+        const [main, pend, jds] = splitPending(arr);   // 待确认 / JD 单独拎出来
+        PENDING = pend;
+        JDS = jds;
+        RECORDS = main.map(normalize);
+        isSample = false;
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(RECORDS)); }catch(e){}
+        refresh();
+      }
+      fileState.pending = false;
+      setSaveState('ok');
+    }catch(err){
+      fileState.mode = 'local'; fileState.handle = null;
+      fsErr('读取文件', err);
+    }
+  }
+  renderDataBar();
+}
+
+async function actNewFile(){
+  let h;
+  try{
+    h = await window.showSaveFilePicker({
+      suggestedName: '我的投递记录.json',
+      types: [{description:'投递数据', accept:{'application/json':['.json']}}],
+    });
+  }catch(e){ if (e.name !== 'AbortError') fsErr('选择保存位置', e); return; }
+  await attachFile(h, true);
+}
+
+async function actOpenFile(){
+  let hs;
+  try{
+    hs = await window.showOpenFilePicker({
+      types: [{description:'投递数据', accept:{'application/json':['.json']}}],
+      multiple: false,
+    });
+  }catch(e){ if (e.name !== 'AbortError') fsErr('选择文件', e); return; }
+
+  const h = hs[0];
+  if (!confirm(`将用「${h.name}」里的数据替换当前这 ${RECORDS.length} 条记录。\n\n继续吗？`)) return;
+  await attachFile(h, false);
+}
+
+async function actResume(){
+  const h = fileState.handle;
+  if (!h) return;
+  try{
+    let p = 'granted';
+    if (typeof h.queryPermission === 'function'){
+      p = await h.queryPermission({mode:'readwrite'});
+      if (p !== 'granted') p = await h.requestPermission({mode:'readwrite'});
+    }
+    if (p !== 'granted'){ alert('没有获得授权，数据仍然只存在浏览器里。'); return; }
+  }catch(e){ fsErr('恢复授权', e); return; }
+  await attachFile(h, false);
+}
+
+/* ---- 启动时尝试接上上次的文件 ---- */
+async function initFileStorage(){
+  if (!fsSupported()){ renderDataBar(); return; }
+
+  let h = null;
+  try{ h = await idbGet(FS_KEY); }catch(e){ console.warn('读取文件句柄失败：', e); }
+  if (!h){ renderDataBar(); return; }
+
+  fileState.handle  = h;
+  fileState.name    = h.name;
+  fileState.hadFile = true;      // 有用过数据文件 —— 从现在起，没连上时的改动要提醒
+
+  try{
+    if (typeof h.queryPermission === 'function'){
+      const p = await h.queryPermission({mode:'readwrite'});
+      if (p === 'granted'){ await attachFile(h, false); return; }
+    }
+  }catch(e){ /* 句柄可能已失效，走下面的重新授权 */ }
+
+  fileState.mode = 'need-permission';
+  renderDataBar();
+}
+
+/* =========================================================
+   6. 启动
+   ========================================================= */
+fillSelects();
+
+$('addBtn').onclick   = () => openModal(null);
+$('saveBtn').onclick  = saveModal;
+$('cancelBtn').onclick = closeModal;
+$('modalClose').onclick = closeModal;
+$('delBtn').onclick   = deleteRecord;
+$('fNote').addEventListener('input', autoGrowNote);   // 边打边长，不用手动拉框
+$('modalMask').onclick = e => { if (e.target === $('modalMask')) closeModal(); };
+
+/* 总板：点数字筛选下方岗位 */
+$('kpis').onclick = e => {
+  const k = e.target.closest('.kpi');
+  if (k) clickKpi(k.dataset.group);
+};
+
+/* 窗口尺寸变了，重新量一次条上的标签放不放得下 */
+addEventListener('resize', () => {
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(refitBars, 120);
+  if ($('modalMask').classList.contains('open')) autoGrowNote();   // 窗口变矮时把备注框收一收
+});
+
+/* DDL 侧拉面板 */
+$('ddlBtn').onclick   = openDrawer;
+$('batchBtn').onclick = () => setBatchMode(!batchMode);
+
+/* JD 留存 */
+$('jdBtn').onclick      = openJD;
+$('jdAddBtn').onclick   = openJD;
+$('jdClose').onclick    = closeJD;
+$('jdCancel').onclick   = closeJD;
+$('jdSave').onclick     = saveJD;
+$('jdMask').onclick     = e => { if (e.target === $('jdMask')) closeJD(); };
+$('jdText').addEventListener('input', () => {
+  const p = parseJD($('jdText').value);
+  if (p.company  && !$('jdCompany').value)  $('jdCompany').value  = p.company;
+  if (p.position && !$('jdPosition').value) $('jdPosition').value = p.position;
+  if (p.url      && !$('jdUrl').value)      $('jdUrl').value      = p.url;
+  growJDText();                      // 框跟着内容长高，不用滚着看
+});
+$('jdText').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); saveJD(); }
+});
+$('jdList').onclick = e => {
+  const t = e.target.closest('[data-jdtog]');
+  if (t){
+    const id = String(t.dataset.jdtog);
+    jdCollapsed.has(id) ? jdCollapsed.delete(id) : jdCollapsed.add(id);
+    renderJDs();
+    return;
+  }
+  const b = e.target.closest('[data-jddel]');
+  if (b) deleteJD(b.dataset.jddel);
+};
+$('drawerClose').onclick = closeDrawer;
+$('drawerMask').onclick  = closeDrawer;
+$('drawerBody').onclick = e => {
+  const it = e.target.closest('.ddl-item');
+  if (it) openModal(Number(it.dataset.id));
+};
+
+/* 时间线：加一条 / 删一条 */
+$('tlAdd').onclick = addTimelineRow;
+$('timelineList').onclick = e => {
+  const x = e.target.closest('.tl-x');
+  if (!x || x.disabled) return;
+  const row = x.closest('.tl-row');
+  removeTimelineRow(Number(row.dataset.i));
+};
+$('clearSample').onclick = () => {
+  if (!confirm('清空示例数据，开始录入你自己的投递记录？\n（清空后不可恢复）')) return;
+  RECORDS = [];
+  isSample = false;
+  saveRecords();
+  refresh();
+};
+
+/* 数据位置状态条上的按钮 */
+$('databar').onclick = e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  if      (act === 'new')    actNewFile();
+  else if (act === 'pick')   actOpenFile();
+  else if (act === 'resume') actResume();
+};
+
+refresh();            // 先用浏览器里的数据把页面渲染出来，不等待文件
+initFileStorage();    // 再异步尝试接上上次的数据文件（接上了会自己重刷）
+</script>
+</body>
+</html>

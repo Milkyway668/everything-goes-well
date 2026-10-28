@@ -1,0 +1,12 @@
+# 本机真实数据与凭据，不要提交
+我的投递记录.json
+我的投递记录.备份_*.json
+邮箱同步/config.json
+邮箱同步/state.json
+邮箱同步/待确认.json
+邮箱同步/待确认.md
+邮箱同步/同步日志.txt
+邮箱同步/task.xml
+邮箱同步/__pycache__/
+*.pyc
+*.bak*
