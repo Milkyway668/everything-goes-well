@@ -629,6 +629,10 @@
         <label>岗位 <span class="req">*</span></label>
         <input id="fPosition" placeholder="例如：投行部 分析师">
       </div>
+      <div class="field full">
+        <label>投递邮箱 <span class="tl-hint">可选，用于匹配 JD 留存</span></label>
+        <input id="fEmail" placeholder="例如：hr@company.com">
+      </div>
       <div class="field">
         <label>行业方向</label>
         <select id="fIndustry"></select>
@@ -678,6 +682,10 @@
         <input id="jdCompany" placeholder="公司（认不出来可手动填）">
         <span class="jd-dot">·</span>
         <input id="jdPosition" placeholder="岗位（认不出来可手动填）">
+      </div>
+      <div class="jd-parse">
+        <span class="jd-parse-label">投递邮箱</span>
+        <input id="jdEmail" placeholder="可选；粘贴 JD 后自动识别，例如 hr@company.com">
       </div>
       <input id="jdUrl" type="hidden">
     </div>
@@ -796,12 +804,12 @@ const SAMPLE_RECORDS = [
 
   /* —— JD 留存示例：带 _jd 标记，只出现在 JD 板块，不进投递列表 —— */
   {id:800001, _jd:true, company:'青禾资本', position:'固收研究实习生',
-   url:'https://example.com/jd/qinghe-fixed-income',
+   email:'hr@qinghe-cap.com', url:'https://example.com/jd/qinghe-fixed-income',
    text:'【岗位职责】\n1. 跟踪利率债、信用债市场，整理每日成交与估值异动，撰写市场日报；\n2. 协助完成城投、地产、产业债的信用分析，搭建主体财务模型；\n3. 参与转债正股基本面研究，维护可转债条款与溢价率数据库；\n4. 支持基金经理的专题研究。\n\n【任职要求】\n1. 2027 届硕士及以上，金融、经济、会计、统计相关专业；\n2. 每周到岗 4 天以上，实习期不少于 3 个月；\n3. 熟练使用 Excel，会 Python 或 Wind 取数者优先。\n\n【实习待遇】\n硕士 200 元/天，提供午餐；表现优秀可进入校招留用流程。',
    added:'2026-10-28', added_at:'2026-10-28 19:42:10', status:'open'},
 
   {id:800002, _jd:true, company:'云岭银行', position:'金融市场部管培生',
-   url:'',
+   email:'campus@yunling-bank.com', url:'',
    text:'【培养方向】\n资金交易、债券投资、同业业务、风险管理四条线轮岗，每站 3 个月。\n\n【岗位职责】\n1. 协助交易员完成日常资金头寸匡算与询价；\n2. 跟踪货币市场利率走势，整理同业存单发行数据；\n3. 参与债券投资组合的久期与流动性分析。\n\n【任职要求】\n1. 2027 届硕士，金融工程、数量经济、数学相关专业优先；\n2. 通过 CFA 一级、FRM 部分科目者优先；\n3. 对利率市场有基本认知，沟通表达清晰。',
    added:'2026-10-27', added_at:'2026-10-27 21:15:33', status:'open'},
 ];
@@ -860,6 +868,7 @@ function normalize(r, i){
     next:     r.next || '—',
     note:     r.note || '',
     ddl:      /^\d{4}-\d{2}-\d{2}$/.test(r.ddl || '') ? r.ddl : '',   // 下一步的截止日期
+    apply_email: r.apply_email || '',      // 投递邮箱，用于匹配 JD 留存
     timeline: list,
   };
 }
@@ -1347,6 +1356,7 @@ const JD_POS_PAT  = /[一-龥A-Za-z0-9\/·\-]{2,24}(?:实习生|分析师|研究
 function parseJD(text){
   const t = (text || '').trim();
   const url = (t.match(/https?:\/\/[^\s"'）)】\]]+/) || [''])[0];
+  const email = (t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [''])[0];
   // 去掉「看到 / 贵司 / 该公司」这类引导词，避免被当成公司名的一部分
   const body = t.replace(/(?:看到|关注到|了解到|得知|发现|贵司|贵公司|该公司)\s*/g, '');
 
@@ -1374,7 +1384,7 @@ function parseJD(text){
     const parts = position.split(/[-—–－|｜]/).map(s => s.trim()).filter(Boolean);
     if (parts.length >= 2) position = parts[parts.length - 1];
   }
-  return { url, company, position };
+  return { url, company, position, email };
 }
 
 function jdNorm(s){
@@ -1387,33 +1397,51 @@ function posNorm(s){
   return jdNorm(s).replace(/(事业部|业务部|项目部|研发部|部门|部|组|中心|团队|室|方向)/g, '');
 }
 
-/* 按「公司 + 岗位」在 JD 池里找对应那条；公司对上、岗位任一方为空也算 */
-function matchJD(company, position){
+function emailNorm(s){ return String(s || '').trim().toLowerCase(); }
+function emailList(v){
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.map(emailNorm).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+}
+
+/* 按「投递邮箱 + 公司 + 岗位」在 JD 池里找对应那条。
+   两边都有邮箱时，邮箱对不上直接排除；邮箱对上则不受公司/岗位写法差异影响。
+   没有邮箱时退回原来的公司 + 岗位匹配。 */
+function matchJD(company, position, emails){
   const c = jdNorm(company), p = posNorm(position);
-  if (!c) return null;
-  return JDS.find(j => {
+  const es = emailList(emails);
+  let best = null, bestScore = -1;
+  JDS.forEach(j => {
     const jc = jdNorm(j.company), jp = posNorm(j.position);
-    if (!jc) return false;
-    if (jc !== c && !jc.includes(c) && !c.includes(jc)) return false;
-    if (!p || !jp) return true;
-    return jp === p || jp.includes(p) || p.includes(jp);
-  }) || null;
+    const je = emailNorm(j.email);
+    const emailHit = !!(je && es.includes(je));
+    if (je && es.length && !emailHit) return;        // 两边都有邮箱但对不上 → 不匹配
+    const companyHit = !!(c && jc && (jc === c || jc.includes(c) || c.includes(jc)));
+    if (!emailHit && !companyHit) return;
+    const posHit = !!(p && jp && (jp === p || jp.includes(p) || p.includes(jp)));
+    if (!emailHit && p && jp && !posHit) return;     // 公司对上但岗位明显不同
+    const score = (emailHit ? 100 : 0) + (companyHit ? 50 : 0) + (posHit ? 30 : 0);
+    if (score > bestScore){ best = j; bestScore = score; }
+  });
+  return best;
 }
 
 function jdNote(j){
   const url  = j.url ? `\n链接：${j.url}` : '';
-  const body = (j.text || '').replace(/\s+/g, ' ').trim();
-  const cut  = body.slice(0, 300);
-  return `【JD】${j.company} · ${j.position}${url}\n${cut}${body.length > 300 ? '…（完整 JD 见「JD 留存」）' : ''}`;
+  const mail = j.email ? `\n投递邮箱：${j.email}` : '';
+  const body = (j.text || '').trim();
+  // JD 匹配成功后会从留存里删除，所以这里必须存全文，不能只截 300 字
+  return `【JD】${j.company} · ${j.position}${url}${mail}\n${body}`;
 }
 
-/* 投递记录落地时调用：匹配上就把 JD 写进备注，并把 JD 标成已投递 */
-function attachJD(rec){
+/* 投递记录落地时调用：匹配上就把 JD 写进备注并从留存里移除。
+   emails 来自邮箱同步的收件人（_source.to），手动新增时来自「投递邮箱」。 */
+function attachJD(rec, emails){
   if (!rec || !JDS.length) return false;
   if ((rec.note || '').includes('【JD】')) return false;        // 已经贴过，别重复
-  const jd = matchJD(rec.company, rec.position);
+  const jd = matchJD(rec.company, rec.position, emails);
   if (!jd) return false;
   rec.note = (rec.note ? rec.note + '\n\n' : '') + jdNote(jd);
+  if (jd.email) rec.apply_email = jd.email;
   // JD 内容已经写进投递备注，留存里就不留了
   JDS = JDS.filter(j => j !== jd);
   return true;
@@ -1502,14 +1530,14 @@ function renderJDs(){
           <button class="btn danger" data-jddel="${j.id}">删除</button>
         </span>
       </div>
-      <div class="jd-item-meta">${esc(j.added_at ? j.added_at.slice(0, 16) : (j.added || ''))}${j.url ? ' · ' + esc(shortUrl(j.url)) : ''}</div>
+      <div class="jd-item-meta">${esc(j.added_at ? j.added_at.slice(0, 16) : (j.added || ''))}${j.email ? ' · ' + esc(j.email) : ''}${j.url ? ' · ' + esc(shortUrl(j.url)) : ''}</div>
       ${txt ? `<div class="jd-item-text${coll ? ' collapsed' : ''}">${esc(txt)}</div>` : ''}
     </div>`;
   }).join('');
 }
 
 function openJD(){
-  ['jdText','jdCompany','jdPosition','jdUrl'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+  ['jdText','jdCompany','jdPosition','jdEmail','jdUrl'].forEach(id => { const el = $(id); if (el) el.value = ''; });
   $('jdErr').textContent = '';
   $('jdMask').classList.add('open');
   setTimeout(() => { const t = $('jdText'); if (t) t.focus(); }, 30);
@@ -1529,6 +1557,14 @@ function saveJD(){
     company  = company  || p.company;
     position = position || p.position;
     if (!url && p.url) $('jdUrl').value = p.url;
+    if (!$('jdEmail').value && p.email) $('jdEmail').value = p.email;
+  }
+
+  const email = emailNorm($('jdEmail').value);
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){
+    $('jdErr').textContent = '投递邮箱格式不对，例如 hr@company.com';
+    $('jdEmail').focus();
+    return;
   }
 
   const dup = company && JDS.find(j => jdNorm(j.company) === jdNorm(company) && jdNorm(j.position) === jdNorm(position));
@@ -1536,7 +1572,7 @@ function saveJD(){
 
   JDS.push({
     id: jdNextId(), _jd: true,
-    company, position,
+    company, position, email,
     url: $('jdUrl').value.trim(),
     text, added: todayStr(), added_at: nowStamp(), status: 'open',
   });
@@ -1618,10 +1654,11 @@ async function resolvePending(id, ok){
       PENDING.splice(i, 1);
     }else{
       const rec = { ...p };
+      const srcEmails = (p._source && p._source.to) || [];   // 收件人邮箱，JD 匹配用
       ['_pending','_ignored','_kind','_source','_target_id','_status'].forEach(k => delete rec[k]);
       rec.id = nextId();
       rec.timeline = [{ s:'submitted', d:(p.timeline && p.timeline[0] && p.timeline[0].d) || todayStr(), n:'' }];
-      attachJD(rec);        // 之前存过对应 JD 的话，自动写进备注
+      attachJD(rec, srcEmails);   // 之前存过对应 JD 的话，自动写进备注
       RECORDS.push(normalize(rec, RECORDS.length));
       PENDING.splice(i, 1);
     }
@@ -1830,6 +1867,7 @@ function openModal(id){
   $('modalTitle').textContent = r ? '编辑岗位' : '新增岗位';
   $('fCompany').value  = r ? r.company  : '';
   $('fPosition').value = r ? r.position : '';
+  $('fEmail').value    = r ? (r.apply_email || '') : '';
   $('fIndustry').value = r ? r.industry : '银行';
   $('fNext').value     = (r && r.next && r.next !== '—') ? r.next : '';
   $('fNote').value     = r ? (r.note || '') : '';
@@ -1873,8 +1911,16 @@ function saveModal(){
     return;
   }
 
+  const applyEmail = emailNorm($('fEmail').value);
+  if (applyEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(applyEmail)){
+    $('modalErr').textContent = '投递邮箱格式不对，例如 hr@company.com';
+    $('fEmail').focus();
+    return;
+  }
+
   const data = {
     company, position,
+    apply_email: applyEmail,
     industry: $('fIndustry').value,
     next:     $('fNext').value.trim() || '—',
     note:     $('fNote').value.trim(),
@@ -1883,7 +1929,11 @@ function saveModal(){
   };
 
   if (editingId == null){
-    RECORDS.push({ id: nextId(), ...data });      // 新增
+    const rec = { id: nextId(), ...data };
+    const cur = timeline[timeline.length - 1];
+    // 待投递的岗位不动 JD；已经投出去（或更后）才尝试匹配并清掉 JD
+    if (cur && cur.s !== 'pending') attachJD(rec, applyEmail ? [applyEmail] : []);
+    RECORDS.push(normalize(rec, RECORDS.length));   // 新增
   } else {
     Object.assign(RECORDS.find(x => x.id === editingId), data);   // 编辑
   }
@@ -2278,6 +2328,7 @@ $('jdText').addEventListener('input', () => {
   if (p.company  && !$('jdCompany').value)  $('jdCompany').value  = p.company;
   if (p.position && !$('jdPosition').value) $('jdPosition').value = p.position;
   if (p.url      && !$('jdUrl').value)      $('jdUrl').value      = p.url;
+  if (p.email    && !$('jdEmail').value)    $('jdEmail').value    = p.email;
 });
 $('jdText').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); saveJD(); }
