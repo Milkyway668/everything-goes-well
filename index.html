@@ -116,7 +116,12 @@
   }
 
   /* KPI：一排紧凑数字，每个都可点击筛选 */
-  .kpis{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:flex-end}
+  .kpis{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+  /* 顶部只留一个紧凑的「已投递」数字 */
+  .kpi-stat{display:flex;align-items:baseline;gap:6px;padding:2px 2px 2px 4px}
+  .kpi-stat .ks-label{font-size:12px;color:var(--ink-3);letter-spacing:.03em}
+  .kpi-stat .ks-num{font-size:24px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
+  .kpi-stat .ks-unit{font-size:12px;color:var(--ink-3)}
   .kpi{
     display:flex;flex-direction:column;gap:0;
     padding:5px 11px 5px;border-radius:9px;cursor:pointer;
@@ -335,7 +340,8 @@
   .jd-tip{font-size:11.5px;color:var(--ink-3);line-height:1.5}
   .jd-head .spacer{flex:1}
   .jd-list{display:flex;flex-direction:column}
-  .jd-item{padding:12px 18px;border-bottom:1px solid var(--line)}
+  .jd-item{padding:12px 18px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+  .jd-item:hover{background:#FAFBFD}
   .jd-item:last-child{border-bottom:0}
   .jd-item-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .jd-item-title{font-size:13.5px;font-weight:600;color:var(--ink)}
@@ -604,7 +610,7 @@
   <section class="panel jdpanel" id="jdPanel" hidden>
     <div class="jd-head">
       <h2>📋 JD 留存</h2>
-      <span class="jd-tip">看到想投的岗位先贴在这儿；真投了，邮箱同步会按「公司+岗位」自动把 JD 写进那条记录的备注</span>
+      <span class="jd-tip">看到想投的岗位先贴在这儿；点任意一条可以编辑。真投了，邮箱同步会按「投递邮箱 + 公司 + 岗位」自动写进那条记录的备注</span>
       <div class="spacer"></div>
       <button class="btn primary" id="jdAddBtn">+ 贴一条 JD</button>
     </div>
@@ -669,7 +675,7 @@
 <div class="modal-mask" id="jdMask">
   <div class="modal">
     <div class="modal-head">
-      <h3>贴一条 JD</h3>
+      <h3 id="jdTitle">贴一条 JD</h3>
       <button class="x" id="jdClose" title="关闭">×</button>
     </div>
     <div class="modal-body">
@@ -831,6 +837,9 @@ let PENDING = [];
    和待确认一样，都躺在同一个 JSON 文件里，靠标记区分。 */
 let JDS = [];
 const jdCollapsed = new Set();      // 哪些 JD 被手动收起（默认全部展开）
+let editingJDId = null;             // 正在编辑的 JD id；null = 新建
+let jdSnapshot = '';                // 打开 JD 弹窗时的表单快照
+let jdOpenedAt = 0;                 // 打开时间，挡住双击第二下落到遮罩上
 
 function splitPending(arr){
   const main = [], pend = [], jds = [];
@@ -999,31 +1008,14 @@ const countI = nm => RECORDS.filter(r => r.industry === nm && passStat(r)).lengt
    4. 渲染
    ========================================================= */
 function renderKPIs(){
-  const n = total();
-  const written      = count('test') + count('written');
-  const interviewing = ['ai','r1','r2','final','hr','verbal'].reduce((s,id)=>s+count(id),0);
-  const offers = count('offer');
-  const submittedAll = RECORDS.filter(r => curStatus(r) !== 'pending').length;
-
-  const cards = [
-    {key:'all',       label:'总岗位数',   num:n,            foot:`已投递 ${submittedAll} · 待投递 ${count('pending')}`},
-    {key:'written',   label:'笔试环节中', num:written,      foot:'含测评 / 笔试'},
-    {key:'interview', label:'面试环节中', num:interviewing, foot:'含AI面 / 一面 / 二面 / 终面 / HR面'},
-    {key:'offer',     label:'Offer',     num:offers,       foot:(offers && n) ? `${(offers/n*100).toFixed(1)}% 转化率` : '暂无', offer:true},
-  ];
-
-  // 脚注信息移到 title，省掉一行高度
-  document.getElementById('kpis').innerHTML = cards.map(c => {
-    const on = (c.key === 'all')
-      ? (!filterGroup && !filterStatus && !filterIndustry)   // 没筛选时，它就是"当前在看全部"
-      : (filterGroup === c.key);
-    return `
-    <div class="kpi${c.offer?' is-offer':''}${on?' on':''}" data-group="${c.key}"
-         title="${c.foot}　·　点击筛选下方岗位">
-      <div class="k-label">${c.label}</div>
-      <div class="k-num">${c.num}<span class="unit">个</span></div>
+  // 顶部只保留一个数字：已投递（不含「待投递」），其余统计不再占版面
+  const submitted = RECORDS.filter(r => curStatus(r) !== 'pending').length;
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi-stat" title="已投递：待投递之外的岗位都算，包括笔试、面试、Offer、已拒绝">
+      <span class="ks-label">已投递</span>
+      <span class="ks-num">${submitted}</span>
+      <span class="ks-unit">个</span>
     </div>`;
-  }).join('');
 }
 
 /* 渲染后按"真实宽度"决定哪几段放得下「名称 + 数字」——
@@ -1519,7 +1511,7 @@ function renderJDs(){
     const txt = (j.text || '').trim();
     const coll = jdCollapsed.has(String(j.id));
     const long = txt.length > 180;
-    return `<div class="jd-item">
+    return `<div class="jd-item" data-jdid="${j.id}" title="点击编辑这条 JD">
       <div class="jd-item-top">
         <span class="jd-item-title">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</span>
         <span class="jd-tag ${applied ? 'applied' : 'open'}">${applied ? '已投递' : '未投递'}</span>
@@ -1536,13 +1528,58 @@ function renderJDs(){
   }).join('');
 }
 
-function openJD(){
-  ['jdText','jdCompany','jdPosition','jdEmail','jdUrl'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+/* 当前 JD 表单状态：用来判断关闭时有没有没保存的改动 */
+function jdFormState(){
+  return JSON.stringify({
+    text:     $('jdText').value,
+    company:  $('jdCompany').value.trim(),
+    position: $('jdPosition').value.trim(),
+    email:    emailNorm($('jdEmail').value),
+    url:      $('jdUrl').value.trim(),
+  });
+}
+
+/* 关闭前拦一道：有改动先确认 */
+function requestCloseJD(){
+  if (!$('jdMask').classList.contains('open')) return;
+  if (jdFormState() !== jdSnapshot){
+    if (!confirm('这条 JD 还有未保存的修改，确定关闭吗？')) return;
+  }
+  closeJD();
+}
+
+/* id 为空 = 新建；传 id = 编辑已保存的 JD */
+function openJD(id){
+  editingJDId = (id == null) ? null : String(id);
+  let j = null;
+  if (editingJDId != null){
+    j = JDS.find(x => String(x.id) === editingJDId) || null;
+    if (!j) editingJDId = null;          // 已经被删掉了，按新建处理
+  }
+
+  $('jdTitle').textContent = j ? '编辑 JD' : '贴一条 JD';
+  ['jdText','jdCompany','jdPosition','jdEmail','jdUrl'].forEach(k => { const el = $(k); if (el) el.value = ''; });
+
+  if (j){
+    $('jdText').value     = j.text || '';
+    $('jdCompany').value  = j.company || '';
+    $('jdPosition').value = j.position || '';
+    $('jdEmail').value    = j.email || '';
+    $('jdUrl').value      = j.url || '';
+  }
+
   $('jdErr').textContent = '';
+  jdSnapshot = jdFormState();
+  jdOpenedAt = Date.now();
   $('jdMask').classList.add('open');
   setTimeout(() => { const t = $('jdText'); if (t) t.focus(); }, 30);
 }
-function closeJD(){ $('jdMask').classList.remove('open'); }
+
+function closeJD(){
+  $('jdMask').classList.remove('open');
+  editingJDId = null;
+  jdSnapshot = '';
+}
 
 function saveJD(){
   const text = $('jdText').value.trim();
@@ -1567,15 +1604,26 @@ function saveJD(){
     return;
   }
 
-  const dup = company && JDS.find(j => jdNorm(j.company) === jdNorm(company) && jdNorm(j.position) === jdNorm(position));
+  const dup = company && JDS.find(j => String(j.id) !== String(editingJDId)
+    && jdNorm(j.company) === jdNorm(company) && jdNorm(j.position) === jdNorm(position));
   if (dup && !confirm(`已经存过「${dup.company} · ${dup.position}」的 JD 了，还要再存一条？`)) return;
 
-  JDS.push({
-    id: jdNextId(), _jd: true,
-    company, position, email,
-    url: $('jdUrl').value.trim(),
-    text, added: todayStr(), added_at: nowStamp(), status: 'open',
-  });
+  if (editingJDId != null){
+    const j = JDS.find(x => String(x.id) === editingJDId);
+    if (!j){ $('jdErr').textContent = '这条 JD 已经不在了，请重新打开'; return; }
+    Object.assign(j, {
+      company, position, email,
+      url: $('jdUrl').value.trim(),
+      text,
+    });
+  } else {
+    JDS.push({
+      id: jdNextId(), _jd: true,
+      company, position, email,
+      url: $('jdUrl').value.trim(),
+      text, added: todayStr(), added_at: nowStamp(), status: 'open',
+    });
+  }
   saveRecords();
   closeJD();
   refresh();
@@ -1782,6 +1830,8 @@ function closeDrawer(){
    5. 增删改
    ========================================================= */
 let editingId = null;
+let modalSnapshot = '';      // 打开弹窗时的表单快照，用来判断有没有未保存的改动
+let modalOpenedAt = 0;       // 打开时间，挡住双击第二下落到遮罩上的「点击穿透」
 
 const $ = id => document.getElementById(id);
 
@@ -1860,6 +1910,30 @@ function removeTimelineRow(i){
   renderTimeline();
 }
 
+/* 当前表单状态：用来判断关闭时有没有没保存的改动 */
+function modalFormState(){
+  syncTimeline();
+  return JSON.stringify({
+    company:  $('fCompany').value.trim(),
+    position: $('fPosition').value.trim(),
+    email:    emailNorm($('fEmail').value),
+    industry: $('fIndustry').value,
+    next:     $('fNext').value.trim(),
+    note:     $('fNote').value,
+    ddl:      $('fDdl').value,
+    timeline: draftTimeline,
+  });
+}
+
+/* 关闭前拦一道：有改动就先确认，避免点歪遮罩把编辑内容丢掉 */
+function requestCloseModal(){
+  if (!$('modalMask').classList.contains('open')) return;
+  if (modalFormState() !== modalSnapshot){
+    if (!confirm('这条岗位还有未保存的修改，确定关闭吗？')) return;
+  }
+  closeModal();
+}
+
 function openModal(id){
   editingId = (id == null) ? null : id;
   const r = (id == null) ? null : RECORDS.find(x => x.id === id);
@@ -1882,6 +1956,8 @@ function openModal(id){
   $('delBtn').style.display = r ? '' : 'none';
   $('modalErr').textContent = '';
 
+  modalSnapshot = modalFormState();
+  modalOpenedAt = Date.now();
   $('modalMask').classList.add('open');
   // 弹窗显示出来之后才能量到真实高度，所以放进 setTimeout
   setTimeout(() => { autoGrowNote(); $('fCompany').focus(); }, 40);
@@ -1890,6 +1966,7 @@ function openModal(id){
 function closeModal(){
   $('modalMask').classList.remove('open');
   editingId = null;
+  modalSnapshot = '';
 }
 
 function saveModal(){
@@ -2002,7 +2079,7 @@ document.addEventListener('click', e => {
   if (pb) resolvePending(pb.dataset.id, pb.dataset.pend === 'ok');
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape'){ closeStatusMenu(); closeModal(); closeDrawer(); }
+  if (e.key === 'Escape'){ closeStatusMenu(); requestCloseJD(); requestCloseModal(); closeDrawer(); }
 });
 
 /* 备份/导入已改由数据文件承担：
@@ -2293,11 +2370,16 @@ fillSelects();
 
 $('addBtn').onclick   = () => openModal(null);
 $('saveBtn').onclick  = saveModal;
-$('cancelBtn').onclick = closeModal;
-$('modalClose').onclick = closeModal;
+$('cancelBtn').onclick = requestCloseModal;
+$('modalClose').onclick = requestCloseModal;
 $('delBtn').onclick   = deleteRecord;
 $('fNote').addEventListener('input', autoGrowNote);   // 边打边长，不用手动拉框
-$('modalMask').onclick = e => { if (e.target === $('modalMask')) closeModal(); };
+$('modalMask').onclick = e => {
+  if (e.target !== $('modalMask')) return;
+  // 双击列表行时，第二下会落到刚出现的遮罩上；350ms 内不响应，避免「点开就关」
+  if (Date.now() - modalOpenedAt < 350) return;
+  requestCloseModal();
+};
 
 /* 总板：点数字筛选下方岗位 */
 $('kpis').onclick = e => {
@@ -2318,11 +2400,16 @@ $('batchBtn').onclick = () => setBatchMode(!batchMode);
 
 /* JD 留存 */
 $('jdBtn').onclick      = openJD;
-$('jdAddBtn').onclick   = openJD;
-$('jdClose').onclick    = closeJD;
-$('jdCancel').onclick   = closeJD;
+$('jdAddBtn').onclick   = () => openJD(null);
+$('jdClose').onclick    = requestCloseJD;
+$('jdCancel').onclick   = requestCloseJD;
 $('jdSave').onclick     = saveJD;
-$('jdMask').onclick     = e => { if (e.target === $('jdMask')) closeJD(); };
+$('jdMask').onclick     = e => {
+  if (e.target !== $('jdMask')) return;
+  // 双击 JD 卡片时，第二下会落到刚出现的遮罩上；350ms 内不响应
+  if (Date.now() - jdOpenedAt < 350) return;
+  requestCloseJD();
+};
 $('jdText').addEventListener('input', () => {
   const p = parseJD($('jdText').value);
   if (p.company  && !$('jdCompany').value)  $('jdCompany').value  = p.company;
@@ -2344,7 +2431,10 @@ $('jdList').onclick = e => {
     return;
   }
   const b = e.target.closest('[data-jddel]');
-  if (b) deleteJD(b.dataset.jddel);
+  if (b){ deleteJD(b.dataset.jddel); return; }
+  if (e.target.closest('a')) return;                 // 「原帖」链接不触发编辑
+  const card = e.target.closest('.jd-item[data-jdid]');
+  if (card) openJD(card.dataset.jdid);               // 点卡片 = 编辑这条 JD
 };
 $('drawerClose').onclick = closeDrawer;
 $('drawerMask').onclick  = closeDrawer;
