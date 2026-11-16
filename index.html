@@ -368,6 +368,16 @@
   .mp-status{font-size:12px;color:var(--ink-3)}
   .mp-status.err{color:#A43A3A}
   .mp-status.ok{color:#1F7A52}
+
+  /* 轻提示：线上演示页点了需要本机后台的按钮时用，不打断浏览 */
+  .mail-toast{
+    position:fixed;left:50%;bottom:36px;transform:translate(-50%,14px);
+    max-width:min(560px,92vw);z-index:80;
+    background:rgba(24,36,58,.95);color:#fff;font-size:13px;line-height:1.7;
+    padding:12px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(10,24,48,.28);
+    opacity:0;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s;
+  }
+  .mail-toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
   @media (max-width:760px){.mp-grid{grid-template-columns:1fr}}
 
   .jd-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}
@@ -610,7 +620,7 @@
         <button class="btn" id="ddlBtn">📅 待办 DDL<span class="badge" id="ddlBadge"></span></button>
         <button class="btn" id="batchBtn" title="勾选多条记录后批量删除">☑ 批量管理</button>
         <button class="btn" id="jdBtn" title="看到想投的岗位先存下来，真投了会自动写进那条记录的备注">📋 JD 留存<span class="badge" id="jdBadge"></span></button>
-        <button class="btn" id="mailBtn" title="打开投递邮件助手（需先双击 邮件助手/启动邮件助手.bat）">✉️ 投递邮件</button>
+        <button class="btn" id="mailBtn" title="打开投递邮件助手（需在本机运行；线上演示页不可用）">✉️ 投递邮件</button>
       </div>
     </div>
 
@@ -1600,8 +1610,25 @@ function shortUrl(u){
   catch(e){ return u.slice(0, 40); }
 }
 
-/* 投递邮件要连本机后台；公开网页（github.io）上没有后台，不显示入口 */
+/* 投递邮件要连本机后台；公开网页（github.io）上没有后台。
+   入口照常显示，点了用轻提示说明怎么在本机用，而不是把按钮藏起来。 */
 const MAIL_BACKEND = !location.hostname.endsWith('github.io');
+const MAIL_ONLINE_TIP = '线上演示页没有本机后台，无法生成或发送邮件。'
+  + '把项目下载到电脑，按 README「快速开始 · 投递邮件助手」配置 Python 后台后再用。';
+
+function mailToast(msg){
+  let el = document.getElementById('mailToast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'mailToast';
+    el.className = 'mail-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  requestAnimationFrame(() => el.classList.add('show'));
+  clearTimeout(mailToast.timer);
+  mailToast.timer = setTimeout(() => el.classList.remove('show'), 4200);
+}
 
 function renderJDs(){
   const panel = $('jdPanel');
@@ -1630,7 +1657,7 @@ function renderJDs(){
         <span class="jd-item-title">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</span>
         <span class="jd-tag ${applied ? 'applied' : 'open'}">${applied ? '已投递' : '未投递'}</span>
         <span class="jd-item-acts">
-          ${MAIL_BACKEND ? `<button class="btn primary" data-jdmail="${j.id}" title="为这条岗位生成投递邮件">✉️ 写邮件</button>` : ''}
+          <button class="btn primary" data-jdmail="${j.id}" title="为这条岗位生成投递邮件">✉️ 写邮件</button>
           <button class="btn" data-jdcopy="${j.id}" title="复制整段 JD 原文">复制</button>
           ${long ? `<button class="btn" data-jdtog="${j.id}">${coll ? '展开全文' : '收起'}</button>` : ''}
           ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener" style="text-decoration:none">原帖</a>` : ''}
@@ -2717,8 +2744,9 @@ $('kpis').addEventListener('keydown', e => {
 });
 $('batchBtn').onclick = () => setBatchMode(!batchMode);
 
-/* 投递邮件：本地助手是独立进程，点了会在新标签页打开 */
+/* 投递邮件：需要本机后台；线上演示页照常显示入口，点了给出说明 */
 $('mailBtn').onclick = () => {
+  if (!MAIL_BACKEND){ mailToast(MAIL_ONLINE_TIP); return; }
   if ($('mpPanel').hidden) mpOpen();
   else mpClose();
 };
@@ -2732,8 +2760,6 @@ $('mpConfirm').onchange = () => {
 $('mpSend').onclick = mpSendMail;
 $('mpCopy').onclick = () => mpCopyText($('mpBody').value, $('mpCopy'));
 
-// 公开网页上没有本机后台，隐藏投递邮件入口，避免访客点了报错
-if (!MAIL_BACKEND) $('mailBtn').hidden = true;
 
 /* JD 留存 */
 $('jdBtn').onclick      = openJD;
@@ -2759,7 +2785,11 @@ $('jdText').addEventListener('keydown', e => {
 });
 $('jdList').onclick = e => {
   const m = e.target.closest('[data-jdmail]');
-  if (m){ mpOpenJD(m.dataset.jdmail); return; }
+  if (m){
+    if (!MAIL_BACKEND){ mailToast(MAIL_ONLINE_TIP); return; }
+    mpOpenJD(m.dataset.jdmail);
+    return;
+  }
   const c = e.target.closest('[data-jdcopy]');
   if (c){ copyJD(c.dataset.jdcopy, c); return; }
   const t = e.target.closest('[data-jdtog]');
