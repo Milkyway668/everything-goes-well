@@ -119,6 +119,7 @@
   .kpis{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
   /* 顶部只留一个紧凑的「已投递」数字 */
   .kpi-stat{display:flex;align-items:baseline;gap:6px;padding:2px 2px 2px 4px}
+  .kpi-stat + .kpi-stat{margin-left:8px;padding-left:16px;border-left:1px solid var(--line)}
   .kpi-stat .ks-label{font-size:12px;color:var(--ink-3);letter-spacing:.03em}
   .kpi-stat .ks-num{font-size:24px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
   .kpi-stat .ks-unit{font-size:12px;color:var(--ink-3)}
@@ -335,6 +336,35 @@
 
   /* ---------- JD 留存 ---------- */
   .jdpanel{margin-top:16px}
+  /* ===== 内置投递邮件 ===== */
+  .mailpanel{margin-top:16px}
+  .mp-body{padding:14px 18px 16px}
+  .mp-top{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+  .mp-selectwrap{flex:1;min-width:260px;display:flex;flex-direction:column;gap:5px}
+  .mp-selectwrap label,.mp-field label,.mp-label{font-size:12px;color:var(--ink-3)}
+  .mp-selectwrap select,.mp-field input{
+    border:1px solid var(--line);border-radius:8px;padding:8px 11px;
+    font-family:inherit;font-size:13px;background:#fff;color:var(--ink);width:100%;outline:none;
+  }
+  .mp-service{font-size:11.5px;color:var(--ink-3);padding-bottom:8px}
+  .mp-service.ok{color:#1F7A52}
+  .mp-service.err{color:#A43A3A}
+  .mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .mp-field{display:flex;flex-direction:column;gap:5px}
+  .mp-label{display:block;margin:12px 0 6px}
+  .mp-textarea{
+    width:100%;min-height:260px;max-height:46vh;overflow-y:auto;
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    font-family:inherit;font-size:13px;line-height:1.7;resize:vertical;background:#fff;color:var(--ink);
+  }
+  .mp-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:12px;color:var(--ink-2)}
+  .mp-check input{margin-top:3px}
+  .mp-actions{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .mp-status{font-size:12px;color:var(--ink-3)}
+  .mp-status.err{color:#A43A3A}
+  .mp-status.ok{color:#1F7A52}
+  @media (max-width:760px){.mp-grid{grid-template-columns:1fr}}
+
   .jd-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}
   .jd-head h2{font-size:14px;font-weight:700;color:var(--ink)}
   .jd-tip{font-size:11.5px;color:var(--ink-3);line-height:1.5}
@@ -575,6 +605,7 @@
         <button class="btn" id="ddlBtn">📅 待办 DDL<span class="badge" id="ddlBadge"></span></button>
         <button class="btn" id="batchBtn" title="勾选多条记录后批量删除">☑ 批量管理</button>
         <button class="btn" id="jdBtn" title="看到想投的岗位先存下来，真投了会自动写进那条记录的备注">📋 JD 留存<span class="badge" id="jdBadge"></span></button>
+        <button class="btn" id="mailBtn" title="打开投递邮件助手（需先双击 邮件助手/启动邮件助手.bat）">✉️ 投递邮件</button>
       </div>
     </div>
 
@@ -616,6 +647,57 @@
     </div>
     <div class="jd-list" id="jdList"></div>
   </section>
+
+  <!-- ========== 投递邮件（内置） ========== -->
+  <section class="panel mailpanel" id="mpPanel" hidden>
+    <div class="jd-head">
+      <h2>✉️ 投递邮件</h2>
+      <span class="jd-tip">从 JD 留存选一条，自动生成；核对后直接发送</span>
+      <div class="spacer"></div>
+      <button class="btn" id="mpClose">收起</button>
+    </div>
+    <div class="mp-body">
+      <div class="mp-top">
+        <div class="mp-selectwrap">
+          <label for="mpJd">选择 JD</label>
+          <select id="mpJd"></select>
+        </div>
+        <button class="btn" id="mpGen">重新生成</button>
+        <span class="mp-service" id="mpService">检查服务中…</span>
+      </div>
+
+      <div class="mp-grid">
+        <div class="mp-field">
+          <label for="mpTo">收件邮箱</label>
+          <input id="mpTo" placeholder="hr@company.com">
+        </div>
+        <div class="mp-field">
+          <label for="mpSubject">主题</label>
+          <input id="mpSubject">
+        </div>
+      </div>
+
+      <label class="mp-label" for="mpBody">正文</label>
+      <textarea id="mpBody" class="mp-textarea" placeholder="选择 JD 后会自动生成"></textarea>
+
+      <label class="mp-check">
+        <input type="checkbox" id="mpConfirm">
+        <span>我已核对收件人、主题和正文；确认发送会附带简历 PDF</span>
+      </label>
+      <div class="mp-field" style="margin-top:10px">
+        <label for="mpFilename">附件名（按 JD 命名规则生成，可修改）</label>
+        <input id="mpFilename" placeholder="例如：姓名-学校-专业-岗位.pdf">
+      </div>
+
+      <div class="mp-actions">
+        <button class="btn primary" id="mpSend" disabled>确认发送</button>
+        <button class="btn" id="mpCopy">复制正文</button>
+        <span class="mp-status" id="mpStatus"></span>
+      </div>
+    </div>
+  </section>
+
+
 
 </div>
 
@@ -1008,12 +1090,22 @@ const countI = nm => RECORDS.filter(r => r.industry === nm && passStat(r)).lengt
    4. 渲染
    ========================================================= */
 function renderKPIs(){
-  // 顶部只保留一个数字：已投递（不含「待投递」），其余统计不再占版面
+  // 顶部只保留两个数字：累计已投递 + 今日已投递，不占太多版面
   const submitted = RECORDS.filter(r => curStatus(r) !== 'pending').length;
+  const today = todayStr();
+  const todaySubmitted = RECORDS.filter(r =>
+    (r.timeline || []).some(e => e.s === 'submitted' && e.d === today)
+  ).length;
+
   document.getElementById('kpis').innerHTML = `
     <div class="kpi-stat" title="已投递：待投递之外的岗位都算，包括笔试、面试、Offer、已拒绝">
       <span class="ks-label">已投递</span>
       <span class="ks-num">${submitted}</span>
+      <span class="ks-unit">个</span>
+    </div>
+    <div class="kpi-stat" title="今日已投递：时间线里今天新增的「已投递」记录数">
+      <span class="ks-label">今日已投递</span>
+      <span class="ks-num">${todaySubmitted}</span>
       <span class="ks-unit">个</span>
     </div>`;
 }
@@ -1638,6 +1730,153 @@ function deleteJD(id){
   refresh();
 }
 
+/* =========================================================
+   内置投递邮件：JD 留存 → 本机助手生成 → 确认发送
+   ========================================================= */
+const MP_API = (location.hostname === '127.0.0.1' && location.port === '8766')
+  ? '' : 'http://127.0.0.1:8766';
+
+function mpStatus(text, kind){
+  const el = $('mpStatus');
+  el.textContent = text || '';
+  el.className = 'mp-status' + (kind ? ' ' + kind : '');
+}
+function mpServiceStatus(text, kind){
+  const el = $('mpService');
+  el.textContent = text;
+  el.className = 'mp-service' + (kind ? ' ' + kind : '');
+}
+
+function mpAttachmentName(subject){
+  let n = (subject || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ').trim().replace(/^[ .]+|[ .]+$/g, '');
+  if (!n) n = '简历';
+  return n.slice(0, 80).replace(/[ .]+$/g, '') + '.pdf';
+}
+function mpRefreshAttach(){
+  if ($('mpFilename').value.trim()) return;   // 模型按 JD 生成的或用户手动改的，不覆盖
+  const s = $('mpSubject').value.trim();
+  if (s) $('mpFilename').value = mpAttachmentName(s);
+}
+
+async function mpCheckService(){
+  mpServiceStatus('检查服务中…');
+  try{
+    const r = await fetch(MP_API + '/api/info', { cache:'no-store' });
+    const d = await r.json();
+    if (d.has_key) mpServiceStatus('服务已连接 · ' + (d.model || ''), 'ok');
+    else mpServiceStatus('服务已连接，但 config.json 里还没填 DeepSeek Key', 'err');
+    return true;
+  }catch(e){
+    mpServiceStatus('连不上后台：确认「邮件助手」黑色窗口还开着；如果仍不行，请改用启动助手时打开的 http://127.0.0.1:8766/dashboard', 'err');
+    return false;
+  }
+}
+
+function mpPopulate(){
+  const sel = $('mpJd');
+  if (!JDS.length){
+    sel.innerHTML = '<option value="">JD 留存里还没有岗位</option>';
+    return;
+  }
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">请选择一条 JD</option>' + JDS.map(j =>
+    `<option value="${j.id}">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</option>`
+  ).join('');
+  if (cur) sel.value = cur;
+}
+
+function mpOpen(){
+  $('mpPanel').hidden = false;
+  mpPopulate();
+  mpCheckService();
+  $('mpPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function mpClose(){ $('mpPanel').hidden = true; }
+
+async function mpGenerate(){
+  const id = $('mpJd').value;
+  const j = JDS.find(x => String(x.id) === String(id));
+  if (!j){ mpStatus('请先选择一条 JD。', 'err'); return; }
+  if (!(j.text || '').trim()){ mpStatus('这条 JD 没有正文，无法生成。', 'err'); return; }
+
+  $('mpGen').disabled = true;
+  $('mpConfirm').checked = false;
+  $('mpSend').disabled = true;
+  mpStatus('正在调用 DeepSeek 生成，通常需要 10–30 秒…');
+  try{
+    const r = await fetch(MP_API + '/api/generate', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ jd: j.text, company: j.company || '', position: j.position || '' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    if (d.email && !$('mpTo').value.trim()) $('mpTo').value = d.email;
+    $('mpSubject').value = d.subject || '';
+    $('mpBody').value = d.body || '';
+    $('mpFilename').value = d.resume_filename
+      ? mpAttachmentName(d.resume_filename)
+      : (d.subject ? mpAttachmentName(d.subject) : '');
+    mpStatus('已生成。请核对收件人、主题、正文和附件名。', 'ok');
+  }catch(e){
+    mpStatus('生成失败：' + e.message + '（请确认后台窗口开着；若仍失败，改用 http://127.0.0.1:8766/dashboard）', 'err');
+  }finally{
+    $('mpGen').disabled = false;
+  }
+}
+
+async function mpCopyText(text, btn){
+  let ok = false;
+  try{
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text); ok = true;
+    }
+  }catch(e){}
+  if (!ok){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand('copy'); document.body.removeChild(ta);
+    }catch(e){ ok = false; }
+  }
+  if (btn){
+    const old = btn.textContent;
+    btn.textContent = ok ? '已复制' : '复制失败';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  }
+}
+
+async function mpSendMail(){
+  const to = $('mpTo').value.trim();
+  const subject = $('mpSubject').value.trim();
+  const body = $('mpBody').value.trim();
+  if (!to){ mpStatus('收件邮箱为空。', 'err'); return; }
+  if (!subject){ mpStatus('主题为空。', 'err'); return; }
+  if (!body){ mpStatus('正文为空。', 'err'); return; }
+  if (!$('mpConfirm').checked){ mpStatus('请先勾选「我已核对」。', 'err'); return; }
+  if (!confirm(`确认把简历发送到 ${to}？\n发送后无法撤回。`)) return;
+
+  $('mpSend').disabled = true;
+  mpStatus('正在通过 QQ 邮箱发送…');
+  try{
+    const r = await fetch(MP_API + '/api/send', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ to, subject, body, confirm:true, filename: $('mpFilename').value.trim() }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    mpStatus('已发送给 ' + d.to + '。', 'ok');
+    $('mpConfirm').checked = false;
+  }catch(e){
+    mpStatus('发送失败：' + e.message, 'err');
+    $('mpSend').disabled = false;
+  }
+}
+
 /* 邮箱同步扫出来、还没确认的记录 */
 function renderPending(){
   const bar = $('pendingBar');
@@ -1707,6 +1946,8 @@ async function resolvePending(id, ok){
       rec.id = nextId();
       rec.timeline = [{ s:'submitted', d:(p.timeline && p.timeline[0] && p.timeline[0].d) || todayStr(), n:'' }];
       attachJD(rec, srcEmails);   // 之前存过对应 JD 的话，自动写进备注
+      // 记住这次实际投递的收件邮箱，用于地址簿学习（JD 里的邮箱不一定是实际收件人）
+      if (srcEmails[0]) rec.apply_email = String(srcEmails[0]).toLowerCase();
       RECORDS.push(normalize(rec, RECORDS.length));
       PENDING.splice(i, 1);
     }
@@ -2283,7 +2524,7 @@ async function attachFile(handle, writeCurrent){
       if (txt.trim()){
         const arr = JSON.parse(txt);
         if (!Array.isArray(arr)) throw new Error('文件内容不是一个数组，可能选错了文件');
-        const [main, pend, jds] = splitPending(arr);   // 待确认 / JD 单独拎出来
+        const [main, pend, jds] = splitPending(arr);    // 待确认 / JD 单独拎出来
         PENDING = pend;
         JDS = jds;
         RECORDS = main.map(normalize);
@@ -2397,6 +2638,33 @@ addEventListener('resize', () => {
 /* DDL 侧拉面板 */
 $('ddlBtn').onclick   = openDrawer;
 $('batchBtn').onclick = () => setBatchMode(!batchMode);
+
+/* 投递邮件：本地助手是独立进程，点了会在新标签页打开 */
+$('mailBtn').onclick = () => {
+  if ($('mpPanel').hidden) mpOpen();
+  else mpClose();
+};
+$('mpClose').onclick = mpClose;
+$('mpJd').onchange = () => {
+  const j = JDS.find(x => String(x.id) === String($('mpJd').value));
+  $('mpTo').value = (j && j.email) || '';
+  $('mpSubject').value = '';
+  $('mpBody').value = '';
+  $('mpFilename').value = '';
+  $('mpConfirm').checked = false;
+  $('mpSend').disabled = true;
+  if (j) mpGenerate();
+};
+$('mpGen').onclick = mpGenerate;
+$('mpSubject').oninput = mpRefreshAttach;
+$('mpConfirm').onchange = () => {
+  $('mpSend').disabled = !$('mpConfirm').checked;
+};
+$('mpSend').onclick = mpSendMail;
+$('mpCopy').onclick = () => mpCopyText($('mpBody').value, $('mpCopy'));
+
+// 公开网页上没有本机后台，隐藏投递邮件入口，避免访客点了报错
+if (location.hostname.endsWith('github.io')) $('mailBtn').hidden = true;
 
 /* JD 留存 */
 $('jdBtn').onclick      = openJD;

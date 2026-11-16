@@ -9,6 +9,7 @@ import email
 import re
 import os
 import json
+from html import unescape as html_unescape
 from email.header import decode_header
 from email.utils import parseaddr, parsedate_to_datetime
 
@@ -90,6 +91,7 @@ def body_text(msg, limit=6000):
         (html if msg.get_content_type() == "text/html" else plain).append(text)
 
     text = "\n".join(plain).strip() or strip_html("\n".join(html))
+    text = html_unescape(text)          # &amp; 这类实体会截断正则，先还原
     text = re.sub(r"[ \t　]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text[:limit]

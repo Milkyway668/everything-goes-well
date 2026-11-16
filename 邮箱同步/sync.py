@@ -24,6 +24,7 @@ CONFIG = os.path.join(BASE, "config.json")
 STATE = os.path.join(BASE, "state.json")
 PENDING = os.path.join(BASE, "待确认.json")
 PENDING_MD = os.path.join(BASE, "待确认.md")
+CONTACTS = os.path.join(BASE, "contacts.json")   # 地址簿：收件邮箱 → 公司
 
 # ---------------------------------------------------------------- 词表
 
@@ -91,7 +92,9 @@ COMPANY_HINT = re.compile(
     r"研究院|研究所|中心|大学|有限|控股|私募|公募|互联网)")
 
 INDUSTRY_RULES = [
-    ("券商", ["证券", "投行", "券商", "承销", "保荐", "研究所"]),
+    # 「投行」单列一档：岗位里明确写投行/投资银行的归到这里，其余证券业务仍算券商
+    ("投行", ["投行", "投资银行"]),
+    ("券商", ["证券", "券商", "承销", "保荐", "研究所"]),
     ("私募基金", ["私募", "母基金", "风投", "创投", "vc", "pe", "资本", "投资管理"]),
     ("公募基金", ["基金", "公募", "资管", "资产管理"]),
     ("银行", ["银行", "农商", "信用社"]),
@@ -136,6 +139,61 @@ def save_json(path, data):
     os.replace(tmp, path)   # 原子替换，写一半断电也不会毁掉原文件
 
 
+# 这些公司名是占位，不能写进地址簿
+GENERIC_COMPANY = re.compile(r"^(?:\(待确认\)|待确认|某|未知|其他|不详)")
+
+
+def email_from_note(note):
+    """从记录备注的「收件人：xxx@yyy」里取第一个邮箱"""
+    m = re.search(r"收件人[：:]\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", note or "")
+    return m.group(1).lower() if m else ""
+
+
+def load_contacts(cfg):
+    """读取地址簿，并用看板里已经人工校正过的记录自动补充。
+       返回 {收件邮箱: 公司名}，同时把新学到的映射写回 contacts.json。"""
+    contacts = load_json(CONTACTS, {})
+    if not isinstance(contacts, dict):
+        contacts = {}
+
+    changed = False
+    records = load_json(dashboard_path(cfg), [])
+    if not isinstance(records, list):
+        records = []
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        if r.get("_pending") or r.get("_jd") or r.get("_contact"):
+            continue
+        company = clean_company(r.get("company", ""))
+        if not company or GENERIC_COMPANY.match(company):
+            continue
+        # 看板里可能存成「高瓴Industrial & Hard Tech」这种公司+岗位连写，地址簿只要公司部分
+        cbase, cpos = split_company_position(company)
+        if cpos and cbase and len(cbase) >= 2:
+            company = clean_company(cbase)
+        emails = []
+        if r.get("apply_email"):
+            emails.append(r["apply_email"])
+        note_email = email_from_note(r.get("note", ""))
+        if note_email:
+            emails.append(note_email)
+        for e in emails:
+            e = (e or "").strip().lower()
+            if not e or "@" not in e:
+                continue
+            if contacts.get(e) != company:
+                contacts[e] = company
+                changed = True
+
+    if changed:
+        try:
+            save_json(CONTACTS, contacts)
+        except OSError:
+            pass
+    return contacts
+
+
 def save_dashboard(path, data):
     """看板数据必须原地覆盖，不能用 os.replace。
        看板页面用 File System Access API 握着这个文件的句柄；
@@ -168,6 +226,8 @@ def is_free_mail(addr, free_domains):
 def clean_company(name):
     n = NOISE.sub("", (name or "").strip())
     n = re.sub(r"[【】\[\]（）()<>\"']", "", n).strip(" -_，,。.")
+    # 「东方财富证券研究所」→「东方财富证券」，部门名不算公司名
+    n = re.sub(r"(证券|基金|银行|保险|信托|资本)(研究所|研究院)$", r"\1", n)
     return n
 
 
@@ -186,8 +246,12 @@ def split_company_position(raw):
     """把「鹏华基金-机构业务经理助理」拆成 (公司, 职位)。
        最后一段带岗位词就当职位，前面剩下的当公司。拆不开就整串当公司。"""
     raw = (raw or "").strip(' 　“”"\'「」')
+    # 中文公司名紧贴英文岗位：「高瓴Industrial & Hard Tech Intern」
+    m = re.match(r"^([一-龥]{2,12})([A-Za-z].*)$", raw)
+    if m:
+        return m.group(1), m.group(2).strip()
     parts = [p.strip() for p in ROLE_SEP.split(raw) if p.strip()]
-    if len(parts) >= 2 and JOB_WORD.search(parts[-1]):
+    if len(parts) >= 2 and (JOB_WORD.search(parts[-1]) or JOB_WORD_EN.search(parts[-1])):
         return "".join(parts[:-1]).strip(), parts[-1]
     return raw, ""
 
@@ -199,11 +263,15 @@ def mixed_from_body(body):
     if not m:
         return "", "", ""
     comp, pos = split_company_position(m.group(1))
+    comp = clean_company(comp)
     if not comp or len(comp) < 2:
         return "", pos, ""
-    # 整段其实是岗位名（比如「看到 实习生 的招聘信息」），不算公司
-    if NOT_COMPANY.match(comp) or JOB_WORD.search(comp):
+    if NOT_COMPANY.match(comp):
         return "", pos, ""
+    # 整段其实是岗位名（比如「看到 实习生 的招聘信息」），不算公司；
+    # 但如果整段只有岗位、没有公司，仍把这段交给岗位识别，别浪费
+    if JOB_WORD.search(comp) and not COMPANY_SUFFIX.search(comp):
+        return "", (pos or comp), ""
     return comp, pos, f"正文「{m.group(0).strip()[:30]}」"
 
 
@@ -244,9 +312,21 @@ def guess_company_from_body(body):
     return "", ""
 
 
-def guess_company(msg, free_domains):
-    """从正文显式写法 / 收件人显示名 / 域名推断公司，返回 (公司名, 依据)"""
-    # 0) 正文「看到 公司-职位 的招聘信息」——最贴近写信习惯，最先试
+def guess_company(msg, free_domains, contacts=None):
+    """从地址簿 / 正文显式写法 / 收件人显示名 / 域名推断公司，返回 (公司名, 依据)"""
+    # 0) 地址簿：你之前人工校正过的「收件邮箱 → 公司」，优先级最高
+    contacts = contacts or {}
+    for addr in msg.get("to_addrs", []):
+        hit = contacts.get((addr or "").lower())
+        if hit:
+            return hit, f"地址簿 {addr.split('@')[-1]}"
+    for raw in msg.get("to", []):
+        _disp, addr = parseaddr(raw)
+        hit = contacts.get((addr or "").lower())
+        if hit:
+            return hit, f"地址簿 {addr.split('@')[-1]}"
+
+    # 1) 正文「看到 公司-职位 的招聘信息」——最贴近写信习惯，最先试
     company, _pos, why = mixed_from_body(msg.get("body", ""))
     if company:
         return company, why
@@ -304,6 +384,16 @@ JOB_WORD = re.compile(
     r"(实习|分析|研究|投行|管培|助理|经理|专员|工程师|顾问|运营|产品|数据|"
     r"量化|交易|承做|承销|销售|风控|财务|会计|审计|法务|人力|研究|岗)")
 
+# 英文岗位词：用于拆分「高瓴-Industrial & Hard Tech Intern」这类写法
+JOB_WORD_EN = re.compile(
+    r"\b(intern|internship|analyst|associate|assistant|manager|specialist|"
+    r"engineer|consultant)\b", re.I)
+
+# 公司名后缀：带这些字的候选即使含「研究」等岗位词，也应视为公司
+COMPANY_SUFFIX = re.compile(
+    r"(有限公司|股份有限公司|集团|证券|基金|银行|保险|信托|科技|资本|"
+    r"咨询|事务所|研究所|研究院)")
+
 
 def valid_pos(v):
     """挡掉日期、手机号、毕业年份这些被误当岗位的字段"""
@@ -315,6 +405,13 @@ def valid_pos(v):
     if re.search(r"\d{11}", v):
         return ""
     if re.search(r"(毕业|在读|级|届)", v) and not JOB_WORD.search(v):
+        return ""
+    # 「ASAP可实习6个月」「研一-金融专硕-每周5天」这类是条件描述，不是岗位名
+    BAD_POS = re.compile(
+        r"(asap|每周|on\s*site|\d+\s*个?月|\d+\s*天|研[一二三]|大[一二三四]|"
+        r"在读|本科|硕士|博士|大学|学院)", re.I)
+    TITLE_WORD = re.compile(r"(实习生|分析师|研究员|经理|助理|专员|工程师|顾问|管培生|主管|总监)")
+    if BAD_POS.search(v) and not TITLE_WORD.search(v):
         return ""
     return v
 
@@ -405,7 +502,7 @@ def keyword_hit(text):
 
 # ---------------------------------------------------------------- 发件箱 → 新投递
 
-def classify_sent(msg, cfg):
+def classify_sent(msg, cfg, contacts=None):
     """判断一封已发送邮件是不是「投递」，返回 dict 或 None"""
     free = cfg["free_mail_domains"]
     to_all = msg["to_addrs"] + msg["cc_addrs"]
@@ -437,7 +534,7 @@ def classify_sent(msg, cfg):
     if re.search(r"退订|unsubscribe|自动回复|群发", msg["subject"], re.I):
         return None
 
-    company, why_company = guess_company(msg, free)
+    company, why_company = guess_company(msg, free, contacts)
     if not company:
         company, why_company = "(待确认)", "收件人域名/名称看不出公司，需手动补"
 
@@ -585,8 +682,10 @@ def scan(cfg, days=None):
 
     # 待确认(_pending)和已忽略(_ignored)的临时记录不算"看板里已有"，
     # 否则第二轮扫描会把自己的待确认当成重复而跳过，待确认区就空了
+    contacts = load_contacts(cfg)      # 地址簿（会自动吸收看板里人工校正过的记录）
     records = [r for r in load_json(dashboard_path(cfg), [])
-               if not r.get("_pending") and not r.get("_ignored") and not r.get("_jd")]
+               if not r.get("_pending") and not r.get("_ignored") and not r.get("_jd")
+               and not r.get("_contact")]
     existing_keys = set()          # 公司|日期|状态
     existing_pos = set()           # 岗位|日期 —— 公司没认出来时靠这个认重
     for r in records:
@@ -608,7 +707,7 @@ def scan(cfg, days=None):
         else:
             for msg in mail_core.fetch_since(M, sent, since):
                 key = "sent|" + (msg["message_id"] or f"{msg['folder']}|{msg['uid']}")
-                cand = classify_sent(msg, cfg)
+                cand = classify_sent(msg, cfg, contacts)
                 if not cand:
                     continue
                 if key in seen:
@@ -762,9 +861,11 @@ def attach_jd(rec, jds):
     if not jd:
         return None
     rec["note"] = (rec["note"] + "\n\n" if rec.get("note") else "") + jd_note(jd)
-    jd["linked_id"]  = rec.get("id")
-    jd["status"]     = "applied"
-    jd["applied_at"] = datetime.now().strftime("%Y-%m-%d")
+    # 内容已经写进备注，从 JD 留存里移除
+    try:
+        jds.remove(jd)
+    except ValueError:
+        pass
     return jd
 
 
