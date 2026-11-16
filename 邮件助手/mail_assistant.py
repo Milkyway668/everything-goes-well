@@ -8,6 +8,7 @@ import json
 import os
 import re
 import smtplib
+import socket
 import ssl
 import sys
 import threading
@@ -15,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,7 +24,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(BASE, "config.json")
 INDEX = os.path.join(BASE, "index.html")
+LOG = os.path.join(BASE, "后台日志.txt")
 HOST, PORT = "127.0.0.1", 8766
+
+
+def log(msg):
+    try:
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {msg}\n")
+    except OSError:
+        pass
 
 
 class AppError(Exception):
@@ -390,17 +401,50 @@ class Handler(BaseHTTPRequestHandler):
             self._send(500, {"error": f"内部错误：{e}"})
 
 
+class LocalServer(ThreadingHTTPServer):
+    # Windows 上 SO_REUSEADDR 会允许两个进程绑同一个端口，必须关掉
+    allow_reuse_address = False
+
+
 def main():
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    no_browser = "--no-browser" in sys.argv
+
+    # 已有实例在跑就直接退出，避免启动第二个后台
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.settimeout(0.4)
+    try:
+        if probe.connect_ex((HOST, PORT)) == 0:
+            log(f"启动跳过：{HOST}:{PORT} 已有实例在运行")
+            return
+    finally:
+        probe.close()
+
+    try:
+        server = LocalServer((HOST, PORT), Handler)
+    except OSError as e:
+        # 端口已被另一个实例占用：静默退出，不要再开第二个
+        log(f"启动跳过：{HOST}:{PORT} 已在运行（{e}）")
+        return
+
     url = f"http://{HOST}:{PORT}/dashboard"
+    log(f"启动成功：{url}" + ("（静默模式）" if no_browser else ""))
     print(f"看板与投递邮件助手已启动：{url}")
-    print("关闭这个窗口即可停止。")
-    threading.Thread(target=lambda: (time.sleep(0.6), webbrowser.open(url)), daemon=True).start()
+    if not no_browser:
+        print("关闭这个窗口即可停止。")
+        threading.Thread(target=lambda: (time.sleep(0.6), webbrowser.open(url)), daemon=True).start()
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        log("后台退出")
+        server.server_close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        log(f"未捕获异常：{type(e).__name__}: {e}")
+        raise

@@ -1768,7 +1768,7 @@ async function mpCheckService(){
     else mpServiceStatus('服务已连接，但 config.json 里还没填 DeepSeek Key', 'err');
     return true;
   }catch(e){
-    mpServiceStatus('连不上后台：确认「邮件助手」黑色窗口还开着；如果仍不行，请改用启动助手时打开的 http://127.0.0.1:8766/dashboard', 'err');
+    mpServiceStatus('连不上后台：后台应已随 Windows 登录自动启动；若没有运行，双击「邮件助手/启动邮件助手.bat」一次即可', 'err');
     return false;
   }
 }
@@ -1821,7 +1821,7 @@ async function mpGenerate(){
       : (d.subject ? mpAttachmentName(d.subject) : '');
     mpStatus('已生成。请核对收件人、主题、正文和附件名。', 'ok');
   }catch(e){
-    mpStatus('生成失败：' + e.message + '（请确认后台窗口开着；若仍失败，改用 http://127.0.0.1:8766/dashboard）', 'err');
+    mpStatus('生成失败：' + e.message + '（后台应已自动启动；若未运行，双击「邮件助手/启动邮件助手.bat」）', 'err');
   }finally{
     $('mpGen').disabled = false;
   }

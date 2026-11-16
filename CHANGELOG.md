@@ -1,5 +1,21 @@
 # 更新记录
 
+## v1.11 — 2026-11-16 16:04
+
+**涉及文件**：`邮件助手/mail_assistant.py`、`邮件助手/使用说明.md`、`index.html`、`.gitignore`、`CHANGELOG.md`
+
+### 后台改为自动启动，不再每次手开窗口
+
+- 后台注册到 Windows 启动文件夹（`邮件助手后台.vbs`），登录后自动静默运行
+- 新增 `--no-browser` 静默模式：自启时不弹浏览器
+- 新增单实例保护：端口已被占用时第二个进程直接退出；
+  关闭 `allow_reuse_address`，避免 Windows 上两个后台同时绑同一端口
+- 新增 `邮件助手/后台日志.txt`，记录启动、跳过、退出；日志已加入 `.gitignore`
+- 面板提示改为「后台应已随 Windows 登录自动启动」；只有异常时才需要双击 bat
+- 手动启动仍可用 `启动邮件助手.bat`
+
+---
+
 ## v1.10 — 2026-11-16 12:11
 
 **涉及文件**：`邮件助手/mail_assistant.py`、`邮件助手/index.html`、`邮件助手/config.example.json`、`邮件助手/使用说明.md`、`邮件助手/启动邮件助手.bat`、`index.html`、`CHANGELOG.md`
