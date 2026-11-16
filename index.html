@@ -378,6 +378,14 @@
     opacity:0;visibility:hidden;transition:opacity .2s ease,transform .2s ease,visibility .2s;
   }
   .mail-toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
+
+  /* 演示模式提示条（线上没有本机后台时显示） */
+  .mp-demo{
+    margin:0 0 12px;padding:10px 14px;border-radius:9px;
+    background:#FFF7E6;border:1px solid #F0D9B0;color:#5C4A22;
+    font-size:12.5px;line-height:1.75;
+  }
+  .mp-demo b{color:#8A5A12}
   @media (max-width:760px){.mp-grid{grid-template-columns:1fr}}
 
   .jd-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}
@@ -620,7 +628,7 @@
         <button class="btn" id="ddlBtn">📅 待办 DDL<span class="badge" id="ddlBadge"></span></button>
         <button class="btn" id="batchBtn" title="勾选多条记录后批量删除">☑ 批量管理</button>
         <button class="btn" id="jdBtn" title="看到想投的岗位先存下来，真投了会自动写进那条记录的备注">📋 JD 留存<span class="badge" id="jdBadge"></span></button>
-        <button class="btn" id="mailBtn" title="打开投递邮件助手（需在本机运行；线上演示页不可用）">✉️ 投递邮件</button>
+        <button class="btn" id="mailBtn" title="打开投递邮件助手（线上为演示模式；真实生成需本机运行）">✉️ 投递邮件</button>
       </div>
     </div>
 
@@ -672,6 +680,10 @@
       <button class="btn" id="mpClose">收起</button>
     </div>
     <div class="mp-body">
+      <div class="mp-demo" id="mpDemo" hidden>
+        <b>演示模式</b>：这是线上示例，选择 JD 后会显示一封示例邮件，正文可以复制。
+        真实的 AI 生成与发信需要把项目下载到本机运行（见 README），线上不会发送任何邮件。
+      </div>
       <div class="mp-top">
         <div class="mp-selectwrap">
           <label for="mpJd">选择 JD</label>
@@ -1613,8 +1625,8 @@ function shortUrl(u){
 /* 投递邮件要连本机后台；公开网页（github.io）上没有后台。
    入口照常显示，点了用轻提示说明怎么在本机用，而不是把按钮藏起来。 */
 const MAIL_BACKEND = !location.hostname.endsWith('github.io');
-const MAIL_ONLINE_TIP = '线上演示页没有本机后台，无法生成或发送邮件。'
-  + '把项目下载到电脑，按 README「快速开始 · 投递邮件助手」配置 Python 后台后再用。';
+const MAIL_ONLINE_TIP = '演示模式不能真的发送邮件：线上没有本机后台，上面的内容是示例。'
+  + '把项目下载到电脑，按 README「快速开始 · 投递邮件助手」配置 Python 后台后可正常生成并发送。';
 
 function mailToast(msg){
   let el = document.getElementById('mailToast');
@@ -1839,7 +1851,14 @@ function mpPopulate(){
 function mpOpen(){
   $('mpPanel').hidden = false;
   mpPopulate();
-  mpCheckService();
+  if (MAIL_BACKEND){
+    $('mpDemo').hidden = true;
+    mpCheckService();
+  }else{
+    // 线上演示页：不连本机后台，只展示生成结果的样例
+    $('mpDemo').hidden = false;
+    mpServiceStatus('演示模式 · 线上没有本机后台', 'ok');
+  }
   $('mpPanel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
@@ -1865,11 +1884,41 @@ function mpOpenJD(id){
   mpSelectJD();
 }
 
+/* 线上演示：不调用后台，用这条 JD 拼一封示例邮件，让人看到功能长什么样 */
+function mpGenerateDemo(j){
+  const company  = j.company  || '（公司）';
+  const position = j.position || '（岗位）';
+  const subject  = `${position}-张三-XX大学金融硕士-2027届-每周4天`;
+  const body = `您好！
+
+我是XX大学金融硕士在读的同学张三，本科毕业于XX大学。看到${company}${position}的招聘信息，希望申请该岗位。
+
+以下是我与该职位相关的经历介绍：
+
+【实习经历】曾在某券商固定收益部实习，协助跟踪利率债、信用债市场，整理每日成交与估值异动，撰写市场日报。
+
+【项目经历】参与城投债信用分析课题，搭建主体财务模型，完成区域风险对比。
+
+【技能】熟练使用 Excel 与 Wind，能用 Python 完成数据清洗与简单回测。
+
+我的base地点是XX，预计可实习 3 个月。
+
+简历见附件，期待有机会进一步交流。感谢您的时间，祝您生活愉快！`;
+
+  $('mpSubject').value  = subject;
+  $('mpBody').value     = body;
+  $('mpFilename').value = mpAttachmentName(subject);
+  $('mpConfirm').checked = false;
+  $('mpSend').disabled = true;
+  mpStatus('演示模式：以上是示例邮件，可以修改或「复制正文」；真实生成需在本机运行邮件助手。', 'ok');
+}
+
 async function mpGenerate(){
   const id = $('mpJd').value;
   const j = JDS.find(x => String(x.id) === String(id));
   if (!j){ mpStatus('请先选择一条 JD。', 'err'); return; }
   if (!(j.text || '').trim()){ mpStatus('这条 JD 没有正文，无法生成。', 'err'); return; }
+  if (!MAIL_BACKEND){ mpGenerateDemo(j); return; }
 
   $('mpGen').disabled = true;
   $('mpConfirm').checked = false;
@@ -1920,6 +1969,7 @@ async function mpCopyText(text, btn){
 }
 
 async function mpSendMail(){
+  if (!MAIL_BACKEND){ mailToast(MAIL_ONLINE_TIP); return; }   // 演示模式不发信
   let to = $('mpTo').value.trim().normalize('NFKC').replace(/[​-‍﻿]/g, '');
   $('mpTo').value = to;
   const subject = $('mpSubject').value.trim();
@@ -2744,9 +2794,8 @@ $('kpis').addEventListener('keydown', e => {
 });
 $('batchBtn').onclick = () => setBatchMode(!batchMode);
 
-/* 投递邮件：需要本机后台；线上演示页照常显示入口，点了给出说明 */
+/* 投递邮件：本机连后台；线上演示页打开面板展示示例生成结果 */
 $('mailBtn').onclick = () => {
-  if (!MAIL_BACKEND){ mailToast(MAIL_ONLINE_TIP); return; }
   if ($('mpPanel').hidden) mpOpen();
   else mpClose();
 };
@@ -2785,11 +2834,7 @@ $('jdText').addEventListener('keydown', e => {
 });
 $('jdList').onclick = e => {
   const m = e.target.closest('[data-jdmail]');
-  if (m){
-    if (!MAIL_BACKEND){ mailToast(MAIL_ONLINE_TIP); return; }
-    mpOpenJD(m.dataset.jdmail);
-    return;
-  }
+  if (m){ mpOpenJD(m.dataset.jdmail); return; }
   const c = e.target.closest('[data-jdcopy]');
   if (c){ copyJD(c.dataset.jdcopy, c); return; }
   const t = e.target.closest('[data-jdtog]');
