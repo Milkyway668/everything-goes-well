@@ -123,6 +123,11 @@
   .kpi-stat .ks-label{font-size:12px;color:var(--ink-3);letter-spacing:.03em}
   .kpi-stat .ks-num{font-size:24px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
   .kpi-stat .ks-unit{font-size:12px;color:var(--ink-3)}
+  /* 「今日已投递」可点：点数字筛出今天投递的岗位，再点一次取消 */
+  .kpi-stat.click{cursor:pointer}
+  .kpi-stat.click:hover .ks-num{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px}
+  .kpi-stat.click:focus-visible{outline:2px solid #8FA8CE;outline-offset:3px;border-radius:6px}
+  .kpi-stat.click.on{background:#EDF1FA;border-radius:8px;box-shadow:inset 0 0 0 1px #D5DFF0}
   .kpi{
     display:flex;flex-direction:column;gap:0;
     padding:5px 11px 5px;border-radius:9px;cursor:pointer;
@@ -795,7 +800,7 @@
 <div class="drawer-mask" id="drawerMask"></div>
 <aside class="drawer" id="drawer" aria-label="待办 DDL">
   <div class="drawer-head">
-    <h3>待办 DDL · 由近到远</h3>
+    <h3 id="drawerTitle">待办 DDL · 由近到远</h3>
     <button class="x" id="drawerClose" title="关闭">×</button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
@@ -1024,6 +1029,7 @@ let RECORDS = loadRecords();
 let filterStatus   = null;   // 单个状态筛选，null = 不限
 let filterGroup    = null;   // 分组筛选（点总板的数字），null = 不限
 let filterIndustry = null;   // 行业筛选，null = 不限
+let filterToday    = false;  // 只看今天投递的岗位（点顶部「今日已投递」）
 
 /* 批量管理：开启后每行前面出现勾选框，勾中的记录可以一次性删除 */
 let batchMode = false;
@@ -1076,8 +1082,13 @@ const GROUPS = {
   offer:     {label:'Offer',   test: r => curStatus(r) === 'offer'},
 };
 
+/* 今天投出去的岗位：时间线里今天有一条「已投递」事件 */
+const isTodaySubmitted = r =>
+  (r.timeline || []).some(e => e.s === 'submitted' && e.d === todayStr());
+
 const passInd  = r => !filterIndustry || r.industry === filterIndustry;
-const passStat = r => filterStatus ? (curStatus(r) === filterStatus)
+const passStat = r => filterToday  ? isTodaySubmitted(r)
+                   : filterStatus ? (curStatus(r) === filterStatus)
                    : filterGroup  ? GROUPS[filterGroup].test(r)
                    : true;
 
@@ -1092,10 +1103,7 @@ const countI = nm => RECORDS.filter(r => r.industry === nm && passStat(r)).lengt
 function renderKPIs(){
   // 顶部只保留两个数字：累计已投递 + 今日已投递，不占太多版面
   const submitted = RECORDS.filter(r => curStatus(r) !== 'pending').length;
-  const today = todayStr();
-  const todaySubmitted = RECORDS.filter(r =>
-    (r.timeline || []).some(e => e.s === 'submitted' && e.d === today)
-  ).length;
+  const todayNum = RECORDS.filter(isTodaySubmitted).length;
 
   document.getElementById('kpis').innerHTML = `
     <div class="kpi-stat" title="已投递：待投递之外的岗位都算，包括笔试、面试、Offer、已拒绝">
@@ -1103,9 +1111,10 @@ function renderKPIs(){
       <span class="ks-num">${submitted}</span>
       <span class="ks-unit">个</span>
     </div>
-    <div class="kpi-stat" title="今日已投递：时间线里今天新增的「已投递」记录数">
+    <div class="kpi-stat click${filterToday ? ' on' : ''}" id="kpiToday" data-kpi="today" role="button" tabindex="0"
+         title="今日已投递：时间线里今天新增的「已投递」记录数；点一下筛出今天投递的岗位，再点一次取消">
       <span class="ks-label">今日已投递</span>
-      <span class="ks-num">${todaySubmitted}</span>
+      <span class="ks-num">${todayNum}</span>
       <span class="ks-unit">个</span>
     </div>`;
 }
@@ -1242,6 +1251,7 @@ function renderRows(){
                                      || lastDate(b).localeCompare(lastDate(a)));
 
   const conds = [];
+  if (filterToday)    conds.push('今日已投递');
   if (filterGroup)    conds.push(GROUPS[filterGroup].label);
   if (filterStatus)   conds.push(`状态「${byId[filterStatus].name}」`);
   if (filterIndustry) conds.push(`行业「${filterIndustry}」`);
@@ -1303,7 +1313,7 @@ function renderRows(){
 
   const clr = document.getElementById('clrBtn');
   if (clr) clr.onclick = () => {
-    filterStatus = null; filterGroup = null; filterIndustry = null; renderAll();
+    filterStatus = null; filterGroup = null; filterIndustry = null; filterToday = false; renderAll();
   };
 
   renderBatchBar();
@@ -1397,6 +1407,14 @@ function deletePicked(){
 function setStatusFilter(id){
   filterStatus = (filterStatus === id) ? null : id;   // 再点一次取消
   filterGroup  = null;                                 // 和总板分组互斥
+  filterToday  = false;
+  renderAll();
+}
+/* 点顶部「今日已投递」：筛出今天投递的岗位，再点一次取消 */
+function setTodayFilter(){
+  filterToday  = !filterToday;
+  filterStatus = null;
+  filterGroup  = null;
   renderAll();
 }
 function setIndustryFilter(nm){
@@ -1407,9 +1425,10 @@ function setIndustryFilter(nm){
 function clickKpi(key){
   if (key === 'all'){
     // 「总岗位数」= 看全部，清掉所有筛选
-    filterStatus = null; filterGroup = null; filterIndustry = null;
+    filterStatus = null; filterGroup = null; filterIndustry = null; filterToday = false;
   } else {
     filterStatus = null;
+    filterToday  = false;
     filterGroup  = (filterGroup === key) ? null : key;   // 再点一次取消
   }
   renderAll();
@@ -1581,6 +1600,9 @@ function shortUrl(u){
   catch(e){ return u.slice(0, 40); }
 }
 
+/* 投递邮件要连本机后台；公开网页（github.io）上没有后台，不显示入口 */
+const MAIL_BACKEND = !location.hostname.endsWith('github.io');
+
 function renderJDs(){
   const panel = $('jdPanel');
   if (!panel) return;
@@ -1608,6 +1630,7 @@ function renderJDs(){
         <span class="jd-item-title">${esc(j.company || '(未识别公司)')} · ${esc(j.position || '(未识别岗位)')}</span>
         <span class="jd-tag ${applied ? 'applied' : 'open'}">${applied ? '已投递' : '未投递'}</span>
         <span class="jd-item-acts">
+          ${MAIL_BACKEND ? `<button class="btn primary" data-jdmail="${j.id}" title="为这条岗位生成投递邮件">✉️ 写邮件</button>` : ''}
           <button class="btn" data-jdcopy="${j.id}" title="复制整段 JD 原文">复制</button>
           ${long ? `<button class="btn" data-jdtog="${j.id}">${coll ? '展开全文' : '收起'}</button>` : ''}
           ${j.url ? `<a class="btn" href="${esc(j.url)}" target="_blank" rel="noopener" style="text-decoration:none">原帖</a>` : ''}
@@ -1795,6 +1818,26 @@ function mpOpen(){
 
 function mpClose(){ $('mpPanel').hidden = true; }
 
+/* 切换 JD：清空上一次生成的内容，按新 JD 重新生成 */
+function mpSelectJD(){
+  const j = JDS.find(x => String(x.id) === String($('mpJd').value));
+  $('mpTo').value = (j && j.email) || '';
+  $('mpSubject').value = '';
+  $('mpBody').value = '';
+  $('mpFilename').value = '';
+  $('mpConfirm').checked = false;
+  $('mpSend').disabled = true;
+  if (j) mpGenerate();
+}
+
+/* 从 JD 卡片「✉️ 写邮件」进来：打开面板 → 选中这条 → 自动生成 */
+function mpOpenJD(id){
+  mpOpen();
+  $('mpJd').value = String(id);
+  mpStatus('');
+  mpSelectJD();
+}
+
 async function mpGenerate(){
   const id = $('mpJd').value;
   const j = JDS.find(x => String(x.id) === String(id));
@@ -1850,10 +1893,15 @@ async function mpCopyText(text, btn){
 }
 
 async function mpSendMail(){
-  const to = $('mpTo').value.trim();
+  let to = $('mpTo').value.trim().normalize('NFKC').replace(/[​-‍﻿]/g, '');
+  $('mpTo').value = to;
   const subject = $('mpSubject').value.trim();
   const body = $('mpBody').value.trim();
   if (!to){ mpStatus('收件邮箱为空。', 'err'); return; }
+  if (!/^[\x00-\x7F]+$/.test(to)){
+    mpStatus('收件邮箱里含有中文或全角字符。QQ SMTP 不支持国际邮箱地址，请改成纯英文邮箱。', 'err');
+    return;
+  }
   if (!subject){ mpStatus('主题为空。', 'err'); return; }
   if (!body){ mpStatus('正文为空。', 'err'); return; }
   if (!$('mpConfirm').checked){ mpStatus('请先勾选「我已核对」。', 'err'); return; }
@@ -2007,6 +2055,19 @@ function updateDdlBadge(){
   const b = $('ddlBadge');
   b.textContent = urgent;
   b.classList.toggle('on', urgent > 0);
+}
+
+/* 过期的截止日期自动清掉：只清空记录里的 ddl 字段，岗位本身（进度、备注等）原样保留。
+   截止日期是「今天」的不算过期。打开看板时跑一次；载入数据文件后再跑一次并写回文件。 */
+function purgeExpiredDDLs(){
+  if (isSample) return 0;      // 示例数据不动，免得第一次打开 DDL 演示全没了
+  let n = 0;
+  RECORDS.forEach(r => {
+    const d = daysTo(r.ddl);
+    if (d !== null && d < 0){ r.ddl = ''; n++; }
+  });
+  if (n) console.info(`已自动清空 ${n} 条过期截止日期`);
+  return n;
 }
 
 function renderDrawer(){
@@ -2533,8 +2594,10 @@ async function attachFile(handle, writeCurrent){
         JDS = jds;
         RECORDS = main.map(normalize);
         isSample = false;
+        const purged = purgeExpiredDDLs();     // 文件里过期的截止日期顺手清掉
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(RECORDS)); }catch(e){}
         refresh();
+        if (purged) saveRecords();             // 清过就写回数据文件
       }
       fileState.pending = false;
       setSaveState('ok');
@@ -2641,6 +2704,17 @@ addEventListener('resize', () => {
 
 /* DDL 侧拉面板 */
 $('ddlBtn').onclick   = openDrawer;
+
+/* 顶部「今日已投递」数字：点一下筛出今天投递的岗位，再点一次取消（回车 / 空格也行） */
+$('kpis').addEventListener('click', e => {
+  if (e.target.closest('[data-kpi="today"]')) setTodayFilter();
+});
+$('kpis').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-kpi="today"]')){
+    e.preventDefault();
+    setTodayFilter();
+  }
+});
 $('batchBtn').onclick = () => setBatchMode(!batchMode);
 
 /* 投递邮件：本地助手是独立进程，点了会在新标签页打开 */
@@ -2649,16 +2723,7 @@ $('mailBtn').onclick = () => {
   else mpClose();
 };
 $('mpClose').onclick = mpClose;
-$('mpJd').onchange = () => {
-  const j = JDS.find(x => String(x.id) === String($('mpJd').value));
-  $('mpTo').value = (j && j.email) || '';
-  $('mpSubject').value = '';
-  $('mpBody').value = '';
-  $('mpFilename').value = '';
-  $('mpConfirm').checked = false;
-  $('mpSend').disabled = true;
-  if (j) mpGenerate();
-};
+$('mpJd').onchange = mpSelectJD;
 $('mpGen').onclick = mpGenerate;
 $('mpSubject').oninput = mpRefreshAttach;
 $('mpConfirm').onchange = () => {
@@ -2668,7 +2733,7 @@ $('mpSend').onclick = mpSendMail;
 $('mpCopy').onclick = () => mpCopyText($('mpBody').value, $('mpCopy'));
 
 // 公开网页上没有本机后台，隐藏投递邮件入口，避免访客点了报错
-if (location.hostname.endsWith('github.io')) $('mailBtn').hidden = true;
+if (!MAIL_BACKEND) $('mailBtn').hidden = true;
 
 /* JD 留存 */
 $('jdBtn').onclick      = openJD;
@@ -2693,6 +2758,8 @@ $('jdText').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); saveJD(); }
 });
 $('jdList').onclick = e => {
+  const m = e.target.closest('[data-jdmail]');
+  if (m){ mpOpenJD(m.dataset.jdmail); return; }
   const c = e.target.closest('[data-jdcopy]');
   if (c){ copyJD(c.dataset.jdcopy, c); return; }
   const t = e.target.closest('[data-jdtog]');
@@ -2742,6 +2809,7 @@ $('databar').onclick = e => {
   else if (act === 'resume') actResume();
 };
 
+purgeExpiredDDLs();   // 打开看板先把过期的截止日期清掉（只改内存；接上数据文件后会写回）
 refresh();            // 先用浏览器里的数据把页面渲染出来，不等待文件
 initFileStorage();    // 再异步尝试接上上次的数据文件（接上了会自己重刷）
 </script>

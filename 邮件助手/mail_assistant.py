@@ -12,11 +12,13 @@ import socket
 import ssl
 import sys
 import threading
+import unicodedata
 import time
 import urllib.error
 import urllib.request
 import webbrowser
 from datetime import datetime
+from email import policy as email_policy
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -250,9 +252,13 @@ def append_to_sent(sender, auth_code, raw):
 def send_mail(to, subject, body, confirm, filename=""):
     if confirm is not True:
         raise AppError("发送前必须勾选「我已核对」。")
-    to = (to or "").strip()
+    # 全角 ＠ / ． / 字母 先转成半角，再校验
+    to = unicodedata.normalize("NFKC", to or "").strip()
+    to = re.sub(r"[​-‍﻿]", "", to)
     if not re.fullmatch(r"[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}", to):
         raise AppError("收件邮箱格式不对，或一次填了多个地址。")
+    if not to.isascii():
+        raise AppError("收件邮箱里含有中文或全角字符。QQ SMTP 不支持国际邮箱地址，请改成纯英文邮箱。")
     if not subject.strip():
         raise AppError("主题不能为空。")
     if not body.strip():
@@ -278,7 +284,10 @@ def send_mail(to, subject, body, confirm, filename=""):
     msg["To"] = to
     msg["Subject"] = subject.strip()
     msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = make_msgid()
+    # make_msgid() 默认用 socket.getfqdn()，中文电脑名会进入邮件头导致 ASCII 编码失败；
+    # 强制用发件邮箱的域名（纯 ASCII）生成 Message-ID
+    msg_domain = sender.rsplit("@", 1)[-1] if "@" in sender else "localhost"
+    msg["Message-ID"] = make_msgid(domain=msg_domain)
     msg.set_content(body.strip())
     with open(resume, "rb") as f:
         msg.add_attachment(
@@ -286,20 +295,41 @@ def send_mail(to, subject, body, confirm, filename=""):
             filename=attachment_filename(filename, subject),
         )
 
+    # 协议层头部必须纯 ASCII；主题/附件名会由邮件库做 RFC2047 编码，这里只查协议头
+    for h in ("From", "To", "Date", "Message-ID"):
+        v = msg.get(h)
+        if v is not None and not str(v).isascii():
+            raise AppError(f"邮件头 {h} 含有非 ASCII 字符，已阻止发送，请检查配置。")
+
+    # 先用 SMTP 标准策略把所有中文头（主题、附件名）编码成字节，
+    # 避开 smtplib.send_message 内部再次按 ASCII 折叠头部的坑
+    try:
+        raw = msg.as_bytes(policy=email_policy.SMTP)
+    except Exception as e:
+        import traceback
+        log("邮件编码失败：\n" + traceback.format_exc())
+        raise AppError(f"邮件内容编码失败：{e}")
+
     host = cfg.get("mail", {}).get("smtp_host", "smtp.qq.com")
     port = int(cfg.get("mail", {}).get("smtp_port", 465))
+    log(
+        "发送参数检查：to_ascii=%s subject_ascii=%s filename_ascii=%s sender_ascii=%s to_len=%s"
+        % (to.isascii(), subject.isascii(), (filename or "").isascii(), sender.isascii(), len(to))
+    )
     try:
         # local_hostname 必须是 ASCII：中文 Windows 电脑名会让 SMTP 握手报 UnicodeEncodeError
         with smtplib.SMTP_SSL(host, port, timeout=30, local_hostname="localhost",
                               context=ssl.create_default_context()) as s:
             s.login(sender, auth_code)
-            s.send_message(msg)
+            s.sendmail(sender, [to], raw)
     except smtplib.SMTPAuthenticationError:
         raise AppError("SMTP 登录失败：授权码可能过期，请到 QQ 邮箱重新生成。")
     except Exception as e:
+        import traceback
+        log("发送异常：\n" + traceback.format_exc())
         raise AppError(f"发送失败：{e}")
 
-    saved, save_err = append_to_sent(sender, auth_code, msg.as_bytes())
+    saved, save_err = append_to_sent(sender, auth_code, raw)
     return {
         "to": to,
         "subject": msg["Subject"],
