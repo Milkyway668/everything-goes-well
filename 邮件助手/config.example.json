@@ -1,0 +1,38 @@
+{
+  "_说明": "复制成 config.json 后填写。config.json 里有 API Key 和个人信息，不要上传、不要发给别人。",
+  "deepseek": {
+    "api_key": "在这里填 DeepSeek API Key",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-flash"
+  },
+  "mail": {
+    "config_path": "../邮箱同步/config.json",
+    "smtp_host": "smtp.qq.com",
+    "smtp_port": 465
+  },
+  "resume_path": "C:/Users/你的用户名/Desktop/简历.pdf",
+  "profile": {
+    "name": "",
+    "school": "",
+    "degree": "",
+    "undergrad": "",
+    "grad": "",
+    "base": "",
+    "experiences": [
+      "经历一（只写事实，模型不会编造）",
+      "经历二",
+      "经历三",
+      "经历四",
+      "经历五"
+    ],
+    "major": "",
+    "year": "",
+    "location": "",
+    "availability": ""
+  },
+  "dashboard_path": "../index.html",
+  "email_template": {
+    "opening": "您好！\n\n我是{school}{degree}的同学{name}，本科毕业于{undergrad}。看到{company}{position}的招聘信息，希望申请该岗位。\n\n以下是我与该职位相关的经历介绍：",
+    "closing": "我的base地点是{base}，预计{availability}。\n\n简历见附件，期待有机会进一步交流。感谢您的时间，祝您生活愉快！"
+  }
+}

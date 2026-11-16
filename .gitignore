@@ -10,5 +10,7 @@
 邮箱同步/同步日志.txt
 邮箱同步/task.xml
 邮箱同步/__pycache__/
+邮件助手/__pycache__/
+__pycache__/
 *.pyc
 *.bak*

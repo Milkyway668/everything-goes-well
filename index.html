@@ -1869,7 +1869,11 @@ async function mpSendMail(){
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-    mpStatus('已发送给 ' + d.to + '。', 'ok');
+    if (d.saved_to_sent){
+      mpStatus('已发送给 ' + d.to + '，并已存入 QQ 邮箱「已发送」。', 'ok');
+    }else{
+      mpStatus('已发送给 ' + d.to + '，但未能存入「已发送」：' + (d.save_error || '未知原因'), 'err');
+    }
     $('mpConfirm').checked = false;
   }catch(e){
     mpStatus('发送失败：' + e.message, 'err');

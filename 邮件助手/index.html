@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投递邮件助手</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316305A'/%3E%3Cpath d='M14 24l18 12 18-12v20a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4z' fill='%23FBF3E7'/%3E%3Cpath d='M14 22l18 13 18-13' stroke='%2316305A' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#F5F3EE; --card:#FFFFFF; --ink:#20252E; --ink2:#5E6673; --ink3:#929AA6;
+    --line:#E3E0D8; --navy:#16305A; --amber:#A96A2A; --amber-bg:#FBF3E7;
+    --green:#1F7A52; --green-bg:#EAF5EF; --red:#A43A3A; --red-bg:#FBECEC;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6}
+  .wrap{max-width:1120px;margin:0 auto;padding:34px 22px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:22px}
+  h1{margin:0;font-size:24px;letter-spacing:.01em;color:var(--navy)}
+  .sub{margin-top:5px;font-size:12.5px;color:var(--ink3)}
+  .back{color:var(--navy);text-decoration:none;margin-left:12px;border-bottom:1px solid #C9D4E6}
+  .back:hover{border-bottom-color:var(--navy)}
+  .meta{font-size:12px;color:var(--ink3);text-align:right;line-height:1.8}
+  .meta b{color:var(--ink2);font-weight:600}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px;box-shadow:0 1px 2px rgba(20,25,35,.03)}
+  .card h2{margin:0 0 4px;font-size:15px;color:var(--ink)}
+  .card .hint{margin:0 0 14px;font-size:12px;color:var(--ink3)}
+  label{display:block;font-size:12px;color:var(--ink2);margin:12px 0 6px;font-weight:600}
+  textarea,input[type=text]{
+    width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    font-family:inherit;font-size:13px;line-height:1.7;color:var(--ink);background:#fff;outline:none;
+  }
+  textarea:focus,input[type=text]:focus{border-color:#9DB0CC;box-shadow:0 0 0 3px rgba(22,48,90,.07)}
+  #jd{min-height:300px;max-height:46vh;overflow-y:auto;resize:vertical}
+  #body{min-height:330px;max-height:52vh;overflow-y:auto;resize:vertical}
+  .row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+  button{
+    border:0;border-radius:9px;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:600;
+    cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .primary{background:var(--navy);color:#fff}
+  .primary:hover:not(:disabled){background:#0E2447}
+  .send{background:var(--green);color:#fff}
+  .send:hover:not(:disabled){background:#186343}
+  .ghost{background:#F2F0EA;color:var(--ink2)}
+  .ghost:hover{background:#EAE7DF}
+  .status{font-size:12.5px;color:var(--ink3);margin-top:12px;min-height:20px}
+  .status.err{color:var(--red)}
+  .status.ok{color:var(--green)}
+  .notice{border-radius:10px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;line-height:1.7}
+  .notice.warn{background:var(--amber-bg);color:#7A4E1C;border:1px solid #EEDFC8}
+  .notice.ok{background:var(--green-bg);color:#1B6042;border:1px solid #CFE7DA}
+  .result{display:block}
+  .empty{padding:44px 12px;text-align:center;color:var(--ink3);font-size:12.5px;border:1px dashed var(--line);border-radius:10px;margin-top:12px}
+  .muted{color:var(--ink3)}
+  .subject{font-size:14px;font-weight:600}
+  .check{display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;color:var(--ink2);line-height:1.6}
+  .check input{margin-top:3px}
+  .to-line{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);margin-top:4px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:5px;background:#F0EEE8;color:var(--ink3)}
+  @media (max-width:860px){.grid{grid-template-columns:1fr} .wrap{padding:24px 14px 50px} .meta{text-align:left}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>投递邮件助手</h1>
+      <div class="sub">贴 JD → 生成主题和正文 → 核对后直接发送，全程本机运行
+        <a class="back" href="/dashboard">← 返回看板</a>
+      </div>
+    </div>
+    <div class="meta">
+      <div>发件：<b id="sender">读取中…</b></div>
+      <div>简历：<b id="resume">—</b> · <span id="model">—</span></div>
+    </div>
+  </header>
+
+  <div id="notice"></div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>① 粘贴 JD</h2>
+      <p class="hint">整段复制过来即可；模型会自己找公司、岗位、投递邮箱和匹配点。</p>
+      <textarea id="jd" placeholder="把招聘 JD 整段粘贴到这里…"></textarea>
+      <div class="row">
+        <button class="primary" id="genBtn">生成邮件</button>
+        <button class="ghost" id="clearBtn">清空</button>
+      </div>
+      <div class="status" id="genStatus"></div>
+    </section>
+
+    <section class="card result" id="result">
+      <h2>② 核对并发送</h2>
+      <p class="hint">主题和正文都可以直接改；发送前请确认收件人。</p>
+
+      <div id="resultEmpty" class="empty">生成后会在这里显示收件人、主题和正文。</div>
+
+      <div id="resultForm" hidden>
+        <label for="to">收件邮箱</label>
+        <input type="text" id="to" placeholder="hr@company.com">
+
+        <label for="subject">主题</label>
+        <input type="text" id="subject" class="subject">
+
+        <label for="body">正文</label>
+        <textarea id="body"></textarea>
+
+        <label class="check">
+          <input type="checkbox" id="confirm">
+          <span>我已核对收件人、主题和正文，并确认要发送这封邮件（会附带简历 PDF）</span>
+        </label>
+
+        <div class="row">
+          <button class="send" id="sendBtn" disabled>确认发送</button>
+          <button class="ghost" id="copyBtn">复制正文</button>
+        </div>
+        <div class="status" id="sendStatus"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+async function api(path, body){
+  const r = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: body ? {'Content-Type':'application/json'} : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+function setStatus(el, text, kind){
+  el.textContent = text || '';
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+async function init(){
+  try{
+    const info = await api('/api/info');
+    $('sender').textContent = info.sender || '未读取到';
+    $('resume').textContent = info.resume || '未设置';
+    $('model').textContent = info.model || '';
+    if (!info.has_key){
+      $('notice').innerHTML = '<div class="notice warn">还没有填 DeepSeek API Key：请打开 <code>邮件助手/config.json</code>，把 <code>deepseek.api_key</code> 填上后刷新本页。</div>';
+      $('genBtn').disabled = true;
+    }
+  }catch(e){
+    $('notice').innerHTML = '<div class="notice warn">读取本地配置失败：' + e.message + '</div>';
+  }
+}
+
+$('genBtn').onclick = async () => {
+  const jd = $('jd').value.trim();
+  if (!jd){ setStatus($('genStatus'), '请先粘贴 JD。', 'err'); return; }
+  $('genBtn').disabled = true;
+  setStatus($('genStatus'), '正在调用 DeepSeek 生成，通常需要 10–30 秒…');
+  try{
+    const out = await api('/api/generate', { jd });
+    $('to').value = out.email || '';
+    $('subject').value = out.subject || '';
+    $('body').value = out.body || '';
+    $('resultEmpty').hidden = true;
+    $('resultForm').hidden = false;
+    $('confirm').checked = false;
+    $('sendBtn').disabled = true;
+    setStatus($('genStatus'), '已生成。请到右侧核对收件人、主题和正文。', 'ok');
+    $('result').scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(e){
+    setStatus($('genStatus'), e.message, 'err');
+  }finally{
+    $('genBtn').disabled = false;
+  }
+};
+
+$('clearBtn').onclick = () => {
+  $('jd').value = '';
+  $('resultForm').hidden = true;
+  $('resultEmpty').hidden = false;
+  setStatus($('genStatus'), '');
+  $('jd').focus();
+};
+
+$('confirm').onchange = () => {
+  $('sendBtn').disabled = !$('confirm').checked;
+};
+
+$('copyBtn').onclick = async () => {
+  const text = $('body').value;
+  try{
+    await navigator.clipboard.writeText(text);
+    setStatus($('sendStatus'), '正文已复制。', 'ok');
+  }catch(e){
+    setStatus($('sendStatus'), '复制失败，请手动选中复制。', 'err');
+  }
+};
+
+$('sendBtn').onclick = async () => {
+  const to = $('to').value.trim();
+  if (!to){ setStatus($('sendStatus'), '收件邮箱为空。', 'err'); return; }
+  if (!confirm(`确认把简历发送到 ${to}？\n发送后无法撤回。`)) return;
+  $('sendBtn').disabled = true;
+  setStatus($('sendStatus'), '正在通过 QQ 邮箱发送…');
+  try{
+    const out = await api('/api/send', {
+      to, subject: $('subject').value, body: $('body').value, confirm: true,
+    });
+    setStatus($('sendStatus'),
+      '已发送给 ' + out.to + (out.saved_to_sent ? '，已存入「已发送」。' : '，但未能存入「已发送」：' + (out.save_error || '未知原因')),
+      out.saved_to_sent ? 'ok' : 'err');
+    $('confirm').checked = false;
+    $('sendBtn').disabled = true;
+  }catch(e){
+    setStatus($('sendStatus'), e.message, 'err');
+    $('sendBtn').disabled = false;
+  }
+};
+
+init();
+</script>
+</body>
+</html>
