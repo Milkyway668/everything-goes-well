@@ -849,9 +849,9 @@ const STATUSES = [
   {id:'dropped',   name:'已放弃',  color:'#D8CFC4', group:'closed', ink:'#4A4238'},
 ];
 const byId = Object.fromEntries(STATUSES.map(s => [s.id, s]));
-const INDUSTRIES = ['银行','券商','公募基金','私募基金','保险','信托','国企央企','选调','互联网','咨询','其他'];
+const INDUSTRIES = ['银行','券商研究所','投资银行','公募基金','私募基金','保险','信托','国企央企','事业单位','选调','互联网','咨询','其他'];
 /* 老存档里的旧分类名 → 新分类名（读到旧数据时自动迁移，不会丢记录） */
-const INDUSTRY_ALIAS = { '基金': '公募基金' };
+const INDUSTRY_ALIAS = { '基金': '公募基金', '券商': '券商研究所', '投行': '投资银行' };
 
 /* 日期工具（放最前面，示例数据归一化时要用） */
 const todayStr = () => {
@@ -1059,8 +1059,9 @@ const picked  = new Set();   // 勾中的记录 id；只保留当前列表里可
 
 /* 行业配色（冷色 / 中性系，与暖调的进度流水线刻意分开，避免混淆） */
 const IND_COLOR = {
-  '银行':'#3E6E9E', '券商':'#2E8E9E', '公募基金':'#3F8F5F', '私募基金':'#2F6F5C',
-  '保险':'#7A8F35', '信托':'#6E5FA8', '国企央企':'#55647A', '选调':'#A2536F', '互联网':'#2E7A9E',
+  '银行':'#3E6E9E', '券商研究所':'#2E8E9E', '投资银行':'#3D438F', '公募基金':'#3F8F5F', '私募基金':'#2F6F5C',
+  '保险':'#7A8F35', '信托':'#6E5FA8', '国企央企':'#55647A', '事业单位':'#B08438',
+  '选调':'#A2536F', '互联网':'#2E7A9E',
   '咨询':'#96806B', '其他':'#7C838C',
 };
 
@@ -1519,7 +1520,9 @@ function jdNorm(s){
 /* 岗位名比较用：去掉「部/组/中心/团队」这类组织词，
    这样「投行部分析师」和「投行分析师」能对上 */
 function posNorm(s){
-  return jdNorm(s).replace(/(事业部|业务部|项目部|研发部|部门|部|组|中心|团队|室|方向)/g, '');
+  return jdNorm(s)
+    .replace(/[|｜/／·・\-—–－]/g, '')          // 「投行部-分析师」和「投行部 分析师」视为同一个
+    .replace(/(事业部|业务部|项目部|研发部|部门|部|组|中心|团队|室|方向)/g, '');
 }
 
 function emailNorm(s){ return String(s || '').trim().toLowerCase(); }
@@ -1546,6 +1549,27 @@ function matchJD(company, position, emails){
     if (!emailHit && p && jp && !posHit) return;     // 公司对上但岗位明显不同
     const score = (emailHit ? 100 : 0) + (companyHit ? 50 : 0) + (posHit ? 30 : 0);
     if (score > bestScore){ best = j; bestScore = score; }
+  });
+  return best;
+}
+
+/* 反过来：这条 JD 对应的岗位，是不是已经在看板里了（贴 JD 时提醒用）。
+   规则和 matchJD 一致，但要求岗位也对得上，避免同一个 HR 邮箱下的不同岗位误报。 */
+function matchAppliedRecord(company, position, emails){
+  const c = jdNorm(company), p = posNorm(position);
+  const es = emailList(emails);
+  let best = null, bestScore = -1;
+  RECORDS.forEach(r => {
+    const rc = jdNorm(r.company), rp = posNorm(r.position);
+    const re = emailNorm(r.apply_email);
+    const emailHit = !!(re && es.includes(re));
+    if (re && es.length && !emailHit) return;
+    const companyHit = !!(c && rc && (rc === c || rc.includes(c) || c.includes(rc)));
+    if (!companyHit && !emailHit) return;
+    const posHit = !!(p && rp && (rp === p || rp.includes(p) || p.includes(rp)));
+    if (p && rp && !posHit) return;                  // 岗位明显不同，不算同一个
+    const score = (emailHit ? 100 : 0) + (companyHit ? 50 : 0) + (posHit ? 30 : 0);
+    if (score > bestScore){ best = r; bestScore = score; }
   });
   return best;
 }
@@ -1761,6 +1785,19 @@ function saveJD(){
   const dup = company && JDS.find(j => String(j.id) !== String(editingJDId)
     && jdNorm(j.company) === jdNorm(company) && jdNorm(j.position) === jdNorm(position));
   if (dup && !confirm(`已经存过「${dup.company} · ${dup.position}」的 JD 了，还要再存一条？`)) return;
+
+  // 新贴的 JD 如果对应岗位已经在看板里投过，先提醒一句（确认后仍可保存）
+  if (editingJDId == null){
+    const hit = matchAppliedRecord(company, position, email ? [email] : []);
+    if (hit && curStatus(hit) !== 'pending'){
+      const st = byId[curStatus(hit)] ? byId[curStatus(hit)].name : '已在看板中';
+      const d  = firstDate(hit) ? `，投递日期 ${firstDate(hit)}` : '';
+      if (!confirm(
+        `这个岗位你已经在看板里投过了：\n${hit.company} · ${hit.position}\n当前状态：${st}${d}\n\n` +
+        `如果只是想留个 JD 存档，点「确定」继续保存；点「取消」就不存了。`
+      )) return;
+    }
+  }
 
   if (editingJDId != null){
     const j = JDS.find(x => String(x.id) === editingJDId);

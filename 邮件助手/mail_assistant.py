@@ -98,6 +98,13 @@ def deepseek_generate(jd, company="", position=""):
         "6. body_middle 只写中间的经历段落，用纯文本，段落之间空一行；按 JD 相关性排列经历。"
         "不要写「您好」、自我介绍、「看到…招聘信息」、简历见附件、感谢等开头/结尾，"
         "首尾由程序用固定模板拼接。不要写「此致」。\n"
+        "6.1 【重要】正文结尾的固定模板里已经写了 base 城市、可实习时长、每周到岗天数、到岗时间"
+        "（例如「我的base地点是深圳，预计可实习6个月」），所以 body_middle 里"
+        "绝对不要再出现这些内容：不要写 base/地点/城市，不要写「可实习X个月」「每周X天」"
+        "「ASAP」「随时到岗」「马上到岗」「预计X月到岗」等信息。"
+        "即使 JD 要求说明到岗时间，也不要写，由结尾模板统一说明。\n"
+        "6.2 body_middle 的第一段不要复述学校、专业、学历、毕业时间等自我介绍信息——"
+        "开头模板已经写过了。直接从实习/项目经历开始写。\n"
         "7. 不要使用夸张形容词，不要写候选人没有提供的信息。"
     )
     user = json.dumps({
@@ -198,8 +205,56 @@ def deepseek_generate(jd, company="", position=""):
     middle = (out.get("body_middle") or "").strip()
     if not middle:
         middle = (out.get("body") or "").strip()
+    middle = strip_repeated_ending(middle, vals["base"], vals["availability"])
     out["body"] = "\n\n".join(x for x in (opening, middle, closing) if x)
     return out
+
+
+def strip_repeated_ending(text, base, availability):
+    """兜底：模型有时会在最后一段再写一遍 base / 实习时长 / 到岗时间，
+    而结尾模板里已经有这些内容了，这里把重复的句子去掉。
+
+    只在「最后一段」里删，且要求句子同时满足：
+      ① 同时出现地点和时长类信息（或时长+ASAP/到岗类词）
+      ② 不像经历描述（不含负责/参与/协助/撰写等动词）
+      ③ 不超过 80 字
+    """
+    if not text:
+        return text
+    avail_kw = re.compile(
+        r"(ASAP|asap|As soon as possible|随时到岗|马上到岗|立即到岗|尽快到岗|"
+        r"可实习\s*\d+\s*个?月|实习\s*\d+\s*个?月|每周\s*[一二三四五六七\d]+\s*天|到岗)")
+    exp_kw = re.compile(
+        r"(实习经历|项目经历|工作经历|负责|参与|协助|撰写|搭建|研究|分析|"
+        r"熟练|掌握|使用|完成|整理|跟踪|支持)")
+
+    def is_repeat(sent):
+        s = sent.strip()
+        if not s or len(s) > 80:
+            return False
+        if exp_kw.search(s):
+            return False
+        has_base = bool(base) and base in s
+        has_avail = bool(availability) and availability in s
+        has_kw = bool(avail_kw.search(s))
+        return (has_base and (has_avail or has_kw)) or (has_avail and has_kw)
+
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paras:
+        return text
+
+    last = paras[-1]
+    # 按句号/分号/感叹号拆句，去掉重复句
+    parts = re.split(r"(?<=[。！；;])", last)
+    kept = [p for p in parts if not is_repeat(p)]
+    new_last = "".join(kept).strip()
+    if new_last == last.strip():
+        return text
+    if new_last:
+        paras[-1] = new_last
+    else:
+        paras.pop()
+    return "\n\n".join(paras)
 
 
 def attachment_filename(name, subject):

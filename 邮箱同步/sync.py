@@ -92,9 +92,9 @@ COMPANY_HINT = re.compile(
     r"研究院|研究所|中心|大学|有限|控股|私募|公募|互联网)")
 
 INDUSTRY_RULES = [
-    # 「投行」单列一档：岗位里明确写投行/投资银行的归到这里，其余证券业务仍算券商
-    ("投行", ["投行", "投资银行"]),
-    ("券商", ["证券", "券商", "承销", "保荐", "研究所"]),
+    # 「投资银行」单列一档：岗位里明确写投行/投资银行的归到这里，其余证券业务算「券商研究所」
+    ("投资银行", ["投行", "投资银行"]),
+    ("券商研究所", ["证券", "券商", "承销", "保荐", "研究所"]),
     ("私募基金", ["私募", "母基金", "风投", "创投", "vc", "pe", "资本", "投资管理"]),
     ("公募基金", ["基金", "公募", "资管", "资产管理"]),
     ("银行", ["银行", "农商", "信用社"]),
@@ -671,6 +671,19 @@ def build_dedupe_key(company, date, status):
     return "|".join([_squash(company), date or "", status or ""])
 
 
+def _company_key(name):
+    """公司判重用：去噪声、去空白、去公司后缀"""
+    n = _squash(clean_company(name or "")).lower()
+    return re.sub(r"(有限公司|股份有限公司|集团|股份|公司)$", "", n)
+
+
+def _position_key(pos):
+    """岗位判重用：和看板里 posNorm 同一套规则，去掉分隔符和部门类词"""
+    n = _squash(pos or "").lower()
+    n = re.sub(r"[|｜/／·・\-—–－]", "", n)     # 「投行部-分析师」=「投行部 分析师」
+    return re.sub(r"(事业部|业务部|项目部|研发部|部门|部|组|中心|团队|室|方向)", "", n)
+
+
 def scan(cfg, days=None):
     state = load_json(STATE, {"seen": {}, "last_scan": ""})
     seen = state.get("seen", {})
@@ -688,8 +701,12 @@ def scan(cfg, days=None):
                and not r.get("_contact")]
     existing_keys = set()          # 公司|日期|状态
     existing_pos = set()           # 岗位|日期 —— 公司没认出来时靠这个认重
+    existing_cp  = set()           # 公司|岗位 —— 同公司同岗位已在看板里（不看日期）
     for r in records:
         pos = re.sub(r"\s", "", r.get("position", "")).lower()
+        ck, pk = _company_key(r.get("company", "")), _position_key(r.get("position", ""))
+        if ck and pk and not GENERIC_COMPANY.match((r.get("company") or "").strip()):
+            existing_cp.add(f"{ck}|{pk}")
         for ev in r.get("timeline", []):
             d = ev.get("d", "")
             existing_keys.add(build_dedupe_key(r.get("company", ""), d, ev.get("s", "")))
@@ -713,6 +730,13 @@ def scan(cfg, days=None):
                 if key in seen:
                     continue
                 pos_key = _squash(cand["position"]).lower() + "|" + msg["date"]
+                ck, pk = _company_key(cand["company"]), _position_key(cand["position"])
+                if (ck and pk and not GENERIC_COMPANY.match((cand["company"] or "").strip())
+                        and f"{ck}|{pk}" in existing_cp):
+                    # 同公司同岗位已经在看板里了（日期不同也算），自动忽略，不进待确认
+                    skipped.append((cand["company"], cand["position"], "看板里已有同公司同岗位记录，已自动忽略"))
+                    seen[key] = msg["date"]
+                    continue
                 if (build_dedupe_key(cand["company"], msg["date"], "submitted") in existing_keys
                         or pos_key in existing_pos):
                     skipped.append((cand["company"], cand["position"], "看板里已有同日同公司/同岗位记录"))
